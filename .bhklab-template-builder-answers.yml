@@ -1,0 +1,14 @@
+# Changes here will be overwritten by Copier
+_commit: v0.10.0
+_src_path: gh:bhklab/bhklab-project-template
+additional_authors_raw: Nasim BondarSahebi
+author_email: bhklab.katyscott@gmail.com
+author_full_name: Katy Scott
+github_username: strixy16
+has_additional_authors: true
+project_description: Running READII-2-ROQC on ISPY2
+project_name: ISPY2 R2R
+project_slug: ispy2-r2r
+publish_to_github: true
+python_version: '3.12'
+repo_location: bhklab
