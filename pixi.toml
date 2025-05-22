@@ -39,6 +39,11 @@ damply = ">=0.10.0, <0.11"
 [tasks]
 example_script = {cmd="python $SCRIPTS/run_feature_extraction.py"}
 
+[tasks.make_kernel]
+cmd = "python -m ipykernel install --user --name=ispy2-r2r --display-name 'Python (ispy2-r2r)'"
+description = "Register the ispy2-r2r environment as a Jupyter kernel"
+
+
 ############################################## QUALITY ###############################################
 # Quality includes linting, type checking, and formatting
 [feature.quality.dependencies]
