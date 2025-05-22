@@ -37,7 +37,7 @@ jupyter_client = ">=8.6.3,<9"
 damply = ">=0.10.0, <0.11"
 
 [tasks]
-example_script = {cmd="python $SCRIPTS/example_script.py"}
+example_script = {cmd="python $SCRIPTS/run_feature_extraction.py"}
 
 ############################################## QUALITY ###############################################
 # Quality includes linting, type checking, and formatting
