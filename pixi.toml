@@ -2,7 +2,7 @@
 name = "ispy2-r2r"
 authors = [
     "Katy Scott <bhklab.katyscott@gmail.com>",
-    "Nasim BondarSahebi<bhklab.nasimbondarsahebi@gmail.com>"
+    "Nasim BondarSahebi <bhklab.nasimbondarsahebi@gmail.com>"
 ]
 description = "Running READII-2-ROQC on ISPY2"
 license = "MIT"
