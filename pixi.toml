@@ -2,7 +2,7 @@
 name = "ispy2-r2r"
 authors = [
     "Katy Scott <bhklab.katyscott@gmail.com>",
-    "Nasim BondarSahebi"
+    "Nasim BondarSahebi<bhklab.nasimbondarsahebi@gmail.com>"
 ]
 description = "Running READII-2-ROQC on ISPY2"
 license = "MIT"
@@ -26,10 +26,12 @@ env.SCRIPTS = "${PIXI_PROJECT_ROOT}/workflow/scripts"
 [dependencies]
 python = ">=3.12"
 ipython = "*"
-ipykernel = "*"
-jupyterlab = "*"
+ipykernel = ">=6.29.5,<7"
+jupyterlab = ">=4.4.2,<5"
 pip = "*"
 pytz = ">=2025.2,<2026"
+jupyter = ">=1.1.1,<2"
+jupyter_client = ">=8.6.3,<9"
 
 [pypi-dependencies]
 damply = ">=0.10.0, <0.11"
