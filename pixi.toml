@@ -14,7 +14,6 @@ quality = { features = ["quality"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 
 [activation]
-# convenient variables which can be used in scripts
 env.CONFIG = "${PIXI_PROJECT_ROOT}/config"
 env.METADATA = "${PIXI_PROJECT_ROOT}/metadata"
 env.LOGS = "${PIXI_PROJECT_ROOT}/logs"
@@ -32,28 +31,47 @@ pip = "*"
 pytz = ">=2025.2,<2026"
 jupyter = ">=1.1.1,<2"
 jupyter_client = ">=8.6.3,<9"
+pandas = "*"
+dcm2niix = ">=1.0.20241211,<2"
+boost-cpp = "==1.78.0"
+libblas = ">=3.9.0,<4.0a0"
+liblapack = ">=3.9.0,<4"
+zlib = ">=1.3.1,<2"
+fslpy = ">=3.21.1,<4"
+hdf5 = "==1.14.4"
+h5py = ">=3.10.0"
+matplotlib = ">=3.9.0,<4"
+simpleitk = "==2.4.0"
+
 
 [pypi-dependencies]
-damply = ">=0.10.0, <0.11"
-med-imagetools = "*"
-readii = "*"
-simpleitk = "*"
-scikit-image = "*"
-pydicom = "*"
-pyradiomics-bhklab = "*"
-imagetools = "*"
-imgtools = "*"
+# problem: med-imagetools==1.10.1 depends on numpy>=1.26.4,<2  but another dependency is forcing numpy==2.2.6
+#med-imagetools = "==1.10.1" or "*" not working
+#pandas = "==2.2.3"
+
+readii = ">=1.36.2,<2"
+scikit-image = "==0.24.0"
+pyradiomics-bhklab = "==3.1.4"
+sqlalchemy = "==2.0.36"
+sqlitedict = "==2.1.0"
+rich = "==13.9.4"
+tqdm = "==4.67.1"
+pydicom = ">=2.3.1,<3"
+imageio = "==2.36.1"
+networkx = "==3.4.2"
+pyyaml = "==6.0.2"
+med-imagetools = ">2"
+
 
 [tasks]
-example_script = {cmd="python $SCRIPTS/run_feature_extraction.py"}
+example_script = { cmd = "python $SCRIPTS/run_feature_extraction.py" }
 
 [tasks.make_kernel]
 cmd = "python -m ipykernel install --user --name=ispy2-r2r --display-name 'Python (ispy2-r2r)'"
 description = "Register the ispy2-r2r environment as a Jupyter kernel"
 
-
 ############################################## QUALITY ###############################################
-# Quality includes linting, type checking, and formatting
+
 [feature.quality.dependencies]
 ruff = "*"
 
