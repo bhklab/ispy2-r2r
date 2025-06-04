@@ -2,11 +2,11 @@ from damply import dirs as dmpdirs
 
 rule run_mit_autopipeline:
     input:
-        input_directory=dmpdirs.RAWDATA / COMBINED_DATA_NAME / "images" / config["DATASET_NAME"],
+        input_directory=dmpdirs.RAWDATA / COMBINED_DATA_NAME / config["DATASET_NAME"],
         mit_crawl_index=dmpdirs.RAWDATA / COMBINED_DATA_NAME / "images/.imgtools" / config["DATASET_NAME"] / "index.csv"
     output:
-        mit_autopipeline_index=dmpdirs.PROCDATA / COMBINED_DATA_NAME / "images" / f"mit_{config["DATASET_NAME"]}" / f"mit_{config["DATASET_NAME"]}_index.csv",
-        output_directory=directory(dmpdirs.PROCDATA / COMBINED_DATA_NAME / "images" / f"mit_{config["DATASET_NAME"]}")
+        mit_autopipeline_index=dmpdirs.PROCDATA / COMBINED_DATA_NAME / f"mit_{config["DATASET_NAME"]}" / f"mit_{config["DATASET_NAME"]}_index.csv",
+        output_directory=directory(dmpdirs.PROCDATA / COMBINED_DATA_NAME / f"mit_{config["DATASET_NAME"]}")
     params:
         modalities=f"{config["MIT"]["MODALITIES"]["image"]},{config["MIT"]["MODALITIES"]["mask"]}",
         roi_match_map=config["MIT"]["ROI_MATCH_MAP"],
@@ -22,7 +22,7 @@ rule run_mit_autopipeline:
 
 rule run_mit_index:
     input:
-        dicom_dir=dmpdirs.RAWDATA / COMBINED_DATA_NAME / "images" / config["DATASET_NAME"]
+        dicom_dir=dmpdirs.RAWDATA / COMBINED_DATA_NAME / config["DATASET_NAME"]
     output:
         directory(dmpdirs.RAWDATA / COMBINED_DATA_NAME / "images/.imgtools" / config["DATASET_NAME"]),
         mit_crawl_index=dmpdirs.RAWDATA / COMBINED_DATA_NAME / "images/.imgtools" / config["DATASET_NAME"] / "index.csv"
@@ -32,3 +32,6 @@ rule run_mit_index:
         """
         imgtools index --dicom-dir {input.dicom_dir} --dataset-name {params.dataset_name} --force
         """
+
+
+# related to damply installation needs Python 3.11, but we're on 3.10. Updating the
