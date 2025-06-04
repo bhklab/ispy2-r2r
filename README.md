@@ -1,8 +1,8 @@
 # ISPY2 R2R
 
-**Authors:** [Katy Scott](https://github.com/strixy16), Nasim BondarSahebi
+**Authors:** [Katy Scott](https://github.com/strixy16), [Nasim BondarSahebi](https://github.com/sogolsahebi)
 
-**Contact:** [bhklab.katyscott@gmail.com](mailto:bhklab.katyscott@gmail.com)
+**Contact:** [bhklab.katyscott@gmail.com](mailto:bhklab.katyscott@gmail.com), [bhklab.nasimbondarsahebi@gmail.com](mailto:bhklab.nasimbondarsahebi@gmail.com)
 
 **Description:** Running READII-2-ROQC on ISPY2
 
