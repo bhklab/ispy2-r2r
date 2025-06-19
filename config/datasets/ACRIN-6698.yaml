@@ -1,0 +1,38 @@
+DATA_SOURCE: "TCIA"
+DATASET_NAME: "ACRIN-6698"
+
+### CLINICAL VARIABLE INFORMATION ###
+CLINICAL:
+    FILE: ""
+    OUTCOME_VARIABLES:
+        time_label: "overall_survival_in_days"
+        event_label: "event_overall_survival"
+        convert_to_years: True
+        event_value_mapping: {} # Event values should be in the order {0: Alive_value, 1: Dead_value}
+    EXCLUSION_VARIABLES: {}
+
+### MED-IMAGETOOLS settings
+MIT:
+    ROI_MATCH_MAP: "GTV:VOLSER.*"
+    ROI_STRATEGY: MERGE
+    MODALITIES: 
+      image: MR
+      mask: SEG
+
+### READII settings
+READII:
+    IMAGE_TYPES:
+        regions:
+        permutations:
+        crop:
+    TRAIN_TEST_SPLIT:
+        split: False
+        split_variable: {}
+        impute: null
+
+### Feature Extraction settings
+EXTRACTION:
+    METHOD: pyradiomics
+    CONFIG: pyradiomics_original_single_feature.yaml
+
+RANDOM_SEED: 10
