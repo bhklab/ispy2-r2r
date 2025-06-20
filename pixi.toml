@@ -23,8 +23,8 @@ env.RESULTS = "${PIXI_PROJECT_ROOT}/data/results"
 env.SCRIPTS = "${PIXI_PROJECT_ROOT}/workflow/scripts"
 
 [dependencies]
-python = "==3.12"
-ipython = ">=9.3.0,<10"
+python = "3.12.*"
+ipython = "*"
 ipykernel = ">=6.29.5,<7"
 jupyterlab = ">=4.4.3,<5"
 pip = ">=25.1.1,<26"
@@ -34,10 +34,19 @@ r-knitr = ">=1.50,<2"
 snakemake = ">=9.6.0,<10"
 
 [pypi-dependencies]
-med-imagetools = ">=2.10.0, <3"
-readii = ">=1.36.2, <2"
-damply = ">=0.17.0, <0.18"
+readii = ">=1.36.2,<2"
+scikit-image = "==0.24.0"
+pyradiomics-bhklab = "==3.1.4"
+sqlalchemy = "==2.0.36"
+sqlitedict = "==2.1.0"
+tqdm = "==4.67.1"
+imageio = "==2.36.1"
+networkx = "==3.4.2"
+pyyaml = "==6.0.2"
+med-imagetools = "*"
+damply = "*"
 highdicom = ">=0.25.1, <0.26"
+
 
 [tasks]
 example_script = { cmd = "python $SCRIPTS/run_feature_extraction.py" }

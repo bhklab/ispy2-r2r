@@ -33,3 +33,4 @@ rule run_mit_index:
         """
         imgtools index --dicom-dir {input.dicom_dir} --dataset-name {params.dataset_name} --force
         """
+
