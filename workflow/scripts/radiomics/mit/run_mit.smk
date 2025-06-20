@@ -33,5 +33,3 @@ rule run_mit_index:
         imgtools index --dicom-dir {input.dicom_dir} --dataset-name {params.dataset_name} --force
         """
 
-
-# related to damply installation needs Python 3.11, but we're on 3.10. Updating the
