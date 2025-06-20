@@ -174,3 +174,5 @@ src/testmypixipkg/__pycache__/__init__.cpython-312.pyc
 logs
 
 .Rproj.user
+
+.snakemake
