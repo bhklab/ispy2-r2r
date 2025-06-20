@@ -37,6 +37,7 @@ snakemake = ">=9.6.0,<10"
 med-imagetools = ">=2.10.0, <3"
 readii = ">=1.36.2, <2"
 damply = ">=0.17.0, <0.18"
+highdicom = ">=0.25.1, <0.26"
 
 [tasks]
 example_script = { cmd = "python $SCRIPTS/run_feature_extraction.py" }
