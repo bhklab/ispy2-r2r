@@ -1,30 +1,29 @@
 ---
-title: "I-SPY Project Data Processing"
-author: "Nasim Bondar Sahebi and Katy Scott"
+title: "Brain_Discovery"
+subtitle: "[EcoTyper_Project, Data processing](https://github.com/bhklab/PredictIO_EcoTyper)"
+author: "Nasim Bondar Sahebi"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
-output:
+output: 
   rmdformats::readthedown:
-    toc_depth: 3
+    toc_depth: 4
     theme: lumen
     highlight: espresso
     code_folding: show
-  rmdformats: default
-affiliation: Princess Margaret Cancer Center, University Health Network, Toronto,
-  Canada
-params:
-  palette: npg
-  size: 1
-  showlabels: false
-  ellipse: true
-css: styles/custom.css
-link-citations: true
+    params:
+      palette: "npg"
+      size: 1
+      showlabels: false
+      ellipse: true
+    css: "styles/custom.css"
+    link-citations: true
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
----
+
 ## Overview
 
 This Script **processes and prepares** the **I-SPY2 dataset**, focusing on:
@@ -227,11 +226,12 @@ ggvenn(venn_data, fill_color = c("#A6CEE3", "#FB9A99"), stroke_size = 0.5, set_n
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold"), plot.background = element_rect(fill = "white"), panel.background = element_blank())
 ```
 
-## Merge Genomics & Radiomics Data
+### Merge Genomics & Radiomics Data
 
 Merging both datasets based on **common patient IDs**.
 
-**Adjustments:**  
+**Adjustments:** 
+
 - **Prefix MRI columns with `"Radiomics_"`**  
 - **Ensure consistent patient IDs**  
 - **Save merged dataset for analysis**  
@@ -256,9 +256,10 @@ write.csv(merged_clin, file = file.path(output_dir, "combined_clin_radiogenomic.
 
 ```
 
+
 ### Segmentation Consistency Check
 
-To ensure accurate **Functional Tumor Volume (FTV)** analysis in the I-SPY clinical trials, we verify that each patient has the expected **4 segmentation masks** from **Dynamic Contrast Enhanced (DCE) MRI** scans.  
+We checked segmentation consistency by verifying whether each patient had four **DCE-MRI** segmentation masks, as required for accurate **Functional Tumor Volume (FTV)** analysis. Most patients met this, but some had fewer and were flagged for review.
 
 ### Segmentation Process in DCE-MRI
 
@@ -271,7 +272,6 @@ Each scan undergoes multiple segmentation steps:
 
 **Segmentation masks are stored as 2D DICOM images** aligned with the original **DCE MRI scans**.  
 note: **Download masks from UCSF Box:** [Link](https://ucsf.box.com/s/d09xetaatzgnz2p9bxlqh50rrzilgcoj)  
-
 
 ### Segmentation Metadata {.tabset .tabset-pills}
 
@@ -330,7 +330,7 @@ ispy1and2 <- merge(ispy1_selected, ispy2_selected, by = c("PATIENT_ID", "TIME_PO
 
 ### Check Segmentation Consistency Across Time Points (T1-T4)  
 
-Each patient (Total: 940) should have at least four segmentation masks, corresponding to their four MRI scans.
+Each of the 940 patients is expected to have at least four segmentation masks, one for each of their four MRI scans
 
 ```{r Check Segmentation}
 # Count segmentations per patient for each time point
@@ -399,13 +399,18 @@ expr_data <- expr_data[rownames(expr_data) %in% rownames(annot_proteincoding),]
 
 # TODO: optional low varience removal
 # plot a density plot
-#range(expr_data)
-# plot(
-#   density(as.numeric(as.matrix(expr_data)), na.rm = TRUE),
-#   main = "Overall Expression Density",
-#   xlab = "Expression",
-#   ylab = "Density"
-# )
+plot(
+  density(as.numeric(as.matrix(expr_data)), na.rm = TRUE),
+  main = "Overall Expression Density",
+  xlab = "Expression",
+  ylab = "Density"
+)
+
+# Frequency table for the treatment columns
+DT::datatable(as.data.frame(table(merged_clin$treatment)), 
+              colnames = c("Treatment", "Count"))
+DT::datatable(as.data.frame(table(merged_clin$treatmentid)), 
+              colnames = c("Treatment ID", "Count"))
 ```
 
 ### 3. PredictIO RNA Signature Integration
@@ -415,12 +420,12 @@ expr_data <- expr_data[rownames(expr_data) %in% rownames(annot_proteincoding),]
 * Signatures used to assess **immune response**, **sensitivity**, or **resistance** to immune checkpoint blockade
 * Mapped to **GENCODE v40**
 * Sources:
-
   * GitHub: [bhklab/SignatureSets](https://github.com/bhklab/SignatureSets)
   * Web app: [predictio.ca](https://predictio.ca/)
 
 ```{r PredictIO sigs intersection}
 # 3. check of how many genes are avaivale in Predio_signitures
+sig_path <- file.path(input_dir, "predictIO_sigs")
 rda_files <- list.files(sig_path, pattern = "\\.rda$", full.names = TRUE)
 summary_list <- list()
 
@@ -463,7 +468,7 @@ kable(summary_df, caption = "Summary of gene overlap between IO signatures and e
 
 #### Full dataset analysis (no subsetting)
 
-```{r DEG- Full dataset analysis,fig.width=10, fig.height=10}
+```{r DEG- Full dataset analysis,fig.width=7, fig.height=7}
 cat("### Full dataset analysis (no subsetting)\n")
 
 # Design and model
@@ -481,18 +486,17 @@ DT::datatable(round(top_full[sapply(top_full, is.numeric)], 3),
               caption = "TopTable - Full")
 
 
-# Volcano plot (FDR)
+# Volcano plot
 top_clean <- top_full[, sapply(top_full, is.numeric)]
 rownames(top_clean) <- top_full$Gene
-
   print(EnhancedVolcano(top_full,
     lab = rownames(top_full),
     x = 'logFC',
     y = 'P.Value',
     pCutoff = 0.05,
     FCcutoff = 1.5,
-    xlim = c(-5, 5),
-    ylim = c(0, 5),
+    xlim = c(-3, 3),
+    ylim = c(0, 20),
     title = paste("Volcano Plot (P value)")
   ))
 
@@ -503,8 +507,8 @@ rownames(top_clean) <- top_full$Gene
     y = 'adj.P.Val',
     pCutoff = 0.05,
     FCcutoff = 1.5,
-    xlim = c(-5, 5),
-    ylim = c(0, 5),
+    xlim = c(-3, 3),
+    ylim = c(0, 20),
     legendLabels = c('Not sig.', 'Log FC', 'adj p-value', 'adj p-value & Log FC'),
     title = paste("Volcano Plot (FDR) ")
   ))
@@ -523,15 +527,20 @@ Treatment groups: `"chemo"`, `"chemo+targeted"`, `"IO+chemo"`, `"targeted"`
 
 **Summary of Differentially Expressed Genes by Treatment**
 
-\| **Treatment**      | **FDR < 0.05** | **FDR < 0.05 & High FC** | **Significant Genes (|log₂FC| ≥ 1.5)** |
-\|--------------------|----------------|---------------------------|----------------------------------------|
-\| **Chemo**              | 0              | 0                         | –                                      |
-\| **Chemo + Targeted**   | 4,152          | 1                         | AGR3                                   |
-\| **IO + Chemo**         | 521            | 47                        | CA12, SLC7A2, LAMP3, CCDC74B, CCL13, ACOX2, AGR2, SCUBE2, GDF15, CRABP1, TNNT1, ELF5, ANXA9, AGR3, ROPN1, IDO1, FOXA1, PROM1, TFF1, TFF3, DYNLRB2, CHI3L1, DNALI1, FSIP1, DHRS2, CLSTN2, EEF1A2, CHI3L2, KRT23, GABRP, CXCL13, GSTA5, MSMB, ROPN1B, KRT5, MARCO, NAT1, CXCL9, STMND1, PPP1R14C, UBD, AR, VGLL1, KRT15, GATA3, PDZK1, MIA |
-\| **Targeted**           | 5              | 3                         | GRB7, MNX1, PNMT                        |
+| **Treatment**           | **FDR < 0.05** | **FDR < 0.05 & High FC** | **Significant Genes (`|log₂FC| ≥ 1.5`)**                                                                                                  |
+|-------------------------|----------------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Chemo                   | 0              | 0                         | –                                                                                                                                         |
+| Chemo + Targeted        | 4,152          | 1                         | AGR3                                                                                                                                    |
+| IO + Chemo              | 521            | 47                        | CA12, SLC7A2, LAMP3, CCDC74B, CCL13, ACOX2, AGR2, SCUBE2, GDF15, CRABP1, TNNT1, ELF5, ANXA9, AGR3, ROPN1, IDO1, FOXA1, PROM1, TFF1, TFF3, DYNLRB2, CHI3L1, DNALI1, FSIP1, DHRS2, CLSTN2, EEF1A2, CHI3L2, KRT23, GABRP, CXCL13, GSTA5, MSMB, ROPN1B, KRT5, MARCO, NAT1, CXCL9, STMND1, PPP1R14C, UBD, AR, VGLL1, KRT15, GATA3, PDZK1, MIA |
+| Targeted                | 5              | 3                         | GRB7, MNX1, PNMT                                                                                                                          |
 
-```{r DEG- Full dataset analysis,fig.width=10, fig.height=10}
-#### now subset for each treatment 
+```{r DEG- subset dataset analysis,fig.width=7, fig.height=7}
+# Frequency table for the treatment columns
+DT::datatable(as.data.frame(table(merged_clin$treatment)), 
+              colnames = c("Treatment", "Count"))
+DT::datatable(as.data.frame(table(merged_clin$treatmentid)), 
+              colnames = c("Treatment ID", "Count"))
+
 treatment_list <- c("chemo", "chemo+targeted", "IO+chemo", "targeted")
 sig_gene_list <- list()
 top_table_list <- list()
@@ -565,7 +574,7 @@ for (treatment in treatment_list) {
     pCutoff = 0.05,
     FCcutoff = 1.5,
     xlim = c(-5, 5),
-    ylim = c(0, 5),
+    ylim = c(0, 8),
     title = paste("Volcano Plot (P value) -", treatment)
   ))
 
@@ -577,7 +586,7 @@ for (treatment in treatment_list) {
     pCutoff = 0.05,
     FCcutoff = 1.5,
     xlim = c(-5, 5),
-    ylim = c(0, 5),
+    ylim = c(0, 8),
     legendLabels = c('Not sig.', 'Log FC', 'adj p-value', 'adj p-value & Log FC'),
     title = paste("Volcano Plot (FDR) -", treatment)
   ))
@@ -627,7 +636,7 @@ for (treatment in treatment_list) {
 
 ##### Hallmark Gene Sets
 
-```{r pathway analysis,fig.width=8, fig.height=10}
+```{r pathway analysis,fig.width=7, fig.height=7}
 # Load human hallmark gene sets from MSigDB
 pathwaysDF <- msigdbr("Homo sapiens", category="H")
 
@@ -642,8 +651,6 @@ names(ranks) <- top_full$Gene
 ranks <- sort(ranks, decreasing = T)
 
 # Preview the data table of ranks.
-DT::datatable(data.frame(ranks))
-
 kable(ranks) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
   scroll_box(height = "400px")
@@ -695,12 +702,11 @@ plotGseaTable(pathwaysH[fgseaRes$pathway[fgseaRes$padj < 0.05]], ranks, fgseaRes
 # Store the list of significant pathways (padj < 0.05).
 significant_pathways <- fgseaRes$pathway[fgseaRes$padj < 0.05]
 # Use a for loop to iterate and plot enrichment for each significant pathway
-for (i in significant_pathways) {
-  enrichment_plot <- plotEnrichment(pathwaysH[[i]], ranks)
-  enrichment_plot <- enrichment_plot + ggtitle(paste("Enrichment Plot for Pathway:",i))
-  print(enrichment_plot)
-}
-
+# for (i in significant_pathways) {
+#   enrichment_plot <- plotEnrichment(pathwaysH[[i]], ranks)
+#   enrichment_plot <- enrichment_plot + ggtitle(paste("Enrichment Plot for Pathway:",i))
+#   print(enrichment_plot)
+# }
 
 # Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
 ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
@@ -709,11 +715,11 @@ ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y=reorder(pathway, size),x=
   theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
 ```
 
-#### KEGG Pathway Analysis {.tabset .tabset-pills}
+##### KEGG Pathway Analysis {.tabset .tabset-pills}
 
 To do KEGG pathway analysis, both KEGG_MEDICUS and KEGG_LEGACY are downloaded. The cutoff of 0.05 is applied for visualization, while the text files include the results across all gene sets.
 
-##### KEGG_MEDICUS
+###### KEGG_MEDICUS
 
 ```{r pathway analysis dotplot, fig.width=16, fig.height=10}
 #Load KEGG_MEDICUS pathways.
@@ -755,8 +761,7 @@ ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(y=reorder(pathway
   labs(x='Normalized Enrichment Score', y=NULL ) + 
   theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
 ```
-
-##### KEGG_LEGACY
+###### KEGG_LEGACY
 
 ```{r kegg_legacy, fig.width=9, fig.height=7}
 # Load KEGG_MEDICUS pathways.
@@ -807,7 +812,7 @@ oraHallmark$Pathway_Set <- "Hallmark"
 oraHallmark$Significance <- ifelse(oraHallmark$padj < 0.05, "Significant", "Not Significant")
 
 # ORA for KEGG_MEDICUS pathways
-oraKeggMed <- fora(pathways = pathwaysKEG, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+oraKeggMed <- fora(pathways = pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
 oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
 oraKeggMed$Significance <- ifelse(oraKeggMed$padj < 0.05, "Significant", "Not Significant")
 
@@ -942,7 +947,7 @@ for (treatment in treatment_list) {
               sep = "\t", row.names = FALSE, quote = FALSE)
   plot_ora_outputs(ora_med, paste("KEGG Medicus ORA", treatment))
 
-  ## --- ORA KEGG_LEGACY ---
+  ## pathwaysKEGG_MED ORA KEGG_LEGACY ---
   ora_leg <- fora(pathwaysKEGG_LEG, genes = deGenes, universe = geneUniverse) %>%
     mutate(Pathway_Set = "KEGG_LEGACY",
            Significance = ifelse(padj < 0.05, "Significant", "Not Significant"),
