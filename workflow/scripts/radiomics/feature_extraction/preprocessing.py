@@ -11,7 +11,9 @@ import SimpleITK as sitk
 import numpy as np
 import pandas as pd
 import sys
+import os
 from readii.feature_extraction import singleRadiomicFeatureExtraction
+
 
 # ------------------------------
 # Step 1: Crop MRI using SEG mask
@@ -22,6 +24,11 @@ def crop_mri_seg(args):
     Outputs:
         - Cropped MRI image
     """
+    if not os.path.exists(args.mr):
+        raise FileNotFoundError(f"MR image not found: {args.mr}")
+    if not os.path.exists(args.seg):
+        raise FileNotFoundError(f"SEG image not found: {args.seg}")
+    
     mr = sitk.ReadImage(args.mr)
     seg = sitk.ReadImage(args.seg)
 
@@ -77,9 +84,64 @@ def extract_feature(args):
     image = sitk.ReadImage(args.image)
     mask = sitk.ReadImage(args.mask)
 
-    # Run PyRadiomics feature extraction with REAII function
+    # Check if the mask has any label == 1
+    mask_array = sitk.GetArrayFromImage(mask)
+    if not np.any(mask_array == 1):
+        print(f"[SKIP] No label 1 found in mask: {args.mask}")
+        # Make sure the folder exists
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
+        # Write empty file to correct path (tmp_{patient}.csv)
+        pd.DataFrame().to_csv(args.output, index=False)
+        sys.exit(0)
+
+    # Run PyRadiomics feature extraction
     radiomic_features_dict = singleRadiomicFeatureExtraction(image, mask, args.param, randomSeed=10)
     pd.DataFrame([radiomic_features_dict]).to_csv(args.output, index=False)
+
+# def extract_feature(args):
+#     import traceback
+#     import shutil
+
+#     try:
+#         image = sitk.ReadImage(args.image)
+#         mask = sitk.ReadImage(args.mask)
+
+#         # Check if the mask has any label == 1
+#         mask_array = sitk.GetArrayFromImage(mask)
+#         if not np.any(mask_array == 1):
+#             print(f"[SKIP] Empty mask for: {args.mask}")
+#             raise ValueError("No label 1 found in mask.")
+
+#         # Run PyRadiomics feature extraction
+#         radiomic_features_dict = singleRadiomicFeatureExtraction(
+#             image, mask, args.param, randomSeed=10
+#         )
+
+#         if not radiomic_features_dict or not isinstance(radiomic_features_dict, dict):
+#             raise ValueError("Radiomic feature extraction returned None or invalid.")
+
+#         pd.DataFrame([radiomic_features_dict]).to_csv(args.output, index=False)
+
+#     except Exception as e:
+#         print(f"[ERROR] Skipping patient due to failure: {e}")
+#         traceback.print_exc()
+
+#         # ⏭️ Move patient directory to needs_review
+#         try:
+#             # assumes output is .../features/tmp_{patient}.csv
+#             patient_id = os.path.basename(args.output).replace("tmp_", "").replace(".csv", "")
+#             features_root = os.path.dirname(os.path.dirname(args.output))
+#             patient_dir = os.path.join(features_root, patient_id)
+#             review_dir = os.path.join(features_root, "needs_review", patient_id)
+
+#             os.makedirs(os.path.dirname(review_dir), exist_ok=True)
+#             if os.path.exists(patient_dir):
+#                 shutil.move(patient_dir, review_dir)
+#                 print(f"[INFO] Moved {patient_id} to needs_review folder.")
+#         except Exception as move_err:
+#             print(f"[WARNING] Could not move patient folder: {move_err}")
+
+#         sys.exit(1)
 
 # ------------------------------
 # Step 4: Merge all per-patient features
@@ -90,10 +152,10 @@ def merge_features(args):
     Output:
         - Merged CSV containing all patients' features
     """
-    dfs = [pd.read_csv(f) for f in args.inputs]
+    #dfs = [pd.read_csv(f) for f in args.inputs]
+    dfs = [pd.read_csv(f) for f in args.inputs if os.path.getsize(f) > 0]
     pd.concat(dfs, ignore_index=True).to_csv(args.output, index=False)
-
-
+    
 
 # ------------------------------
 # Argument parser with subcommands
@@ -124,10 +186,10 @@ def main():
     p_feat.add_argument("--output", required=True, help="Output path for CSV feature row")
     p_feat.set_defaults(func=extract_feature)
 
-    # Subcommand: Merge CSVs
-    p_merge = subparsers.add_parser("merge_features", help="Merge feature CSVs")
-    p_merge.add_argument("--inputs", nargs="+", required=True, help="List of input CSVs to merge")
-    p_merge.add_argument("--output", required=True, help="Output path for merged CSV")
+    # Merge Feature CSVs
+    p_merge = subparsers.add_parser("merge_features", help="Merge multiple per-patient feature CSVs")
+    p_merge.add_argument("--inputs", nargs="+", required=True, help="List of CSV files to merge")
+    p_merge.add_argument("--output", required=True, help="Output merged CSV")
     p_merge.set_defaults(func=merge_features)
 
     args = parser.parse_args()
