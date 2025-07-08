@@ -17,7 +17,7 @@ rule binarize_masks:
         pixi run python workflow/scripts/radiomics/readii/process_masks.py --dataset {dataset}.yaml > {output.log_file} 2>&1
         """
 
-# Final target: merged radiomics feature CSV
+# Final target: merged radiomics feature CSV.
 rule all:
     input:
        dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_features.csv"
