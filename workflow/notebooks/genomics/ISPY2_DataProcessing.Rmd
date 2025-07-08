@@ -411,6 +411,8 @@ DT::datatable(as.data.frame(table(merged_clin$treatment)),
               colnames = c("Treatment", "Count"))
 DT::datatable(as.data.frame(table(merged_clin$treatmentid)), 
               colnames = c("Treatment ID", "Count"))
+
+#TODO:  vaitaion per treatment plots
 ```
 
 ### 3. PredictIO RNA Signature Integration
@@ -455,6 +457,13 @@ summary_df <- do.call(rbind, summary_list)
 kable(summary_df, caption = "Summary of gene overlap between IO signatures and expression data") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
   scroll_box(height = "400px")
+
+#TODO: 
+# - IO: known sig ( eg.50 RNA): start with subset of sig 
+# - chemo: two ways (low varience removal) 1. already publish sig for breast  2.MSIGDB( extract pathways)-GO-Reactom?: 80% cuoff , act like  sig example. GSVEA compute scores.
+# filteration by correlations base don thier scores.then smaller pathways. 
+
+# next steps: slected pathways with radiomcs features. 
 ```
 
 ### 4. Differential Gene Expression Analysis (R vs NR) {.tabset .tabset-pills}
@@ -620,13 +629,14 @@ for (treatment in treatment_list) {
 
 ### 5. Pathway Enrichment Analysis {.tabset .tabset-pills}
 
-**a. MSigDB Hallmark and KEGG**
+**a. MSigDB Hallmark Pathways** 
 
 * Gene sets downloaded from [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H)
 * Analysis: **GSEA using the `fgsea` R package**
 * Input: ranked gene list from differential expression results
 
 **b. KEGG Pathway Analysis (Legacy + Medicus)**
+# TODO: use the large rone
 
 * Used both **KEGG\_LEGACY** and **KEGG\_MEDICUS** gene sets
 * Significance cutoff for visualization: **FDR < 0.05**
@@ -637,6 +647,16 @@ for (treatment in treatment_list) {
 ##### Hallmark Gene Sets
 
 ```{r pathway analysis,fig.width=7, fig.height=7}
+
+#TODO: 
+# - IO: known sig ( eg.50 RNA): start with subset of sig 
+# - chemo: two ways (low varience removal) 1. already publish sig for breast 
+# 2.MSIGDB( extract pathways)-GO-Reactom?: 80% cuoff , act like  sig example. GSVEA compute scores.
+# filteration by correlations base don thier scores.then smaller pathways. 
+
+# next steps: slected pathways with radiomcs features.
+#starting unsupervsised so skip DE analaysis
+
 # Load human hallmark gene sets from MSigDB
 pathwaysDF <- msigdbr("Homo sapiens", category="H")
 
@@ -656,7 +676,7 @@ kable(ranks) %>%
   scroll_box(height = "400px")
 # 2. Bar Plot
 # Display the ranked fold changes.
-barplot(ranks)
+#barplot(ranks)
 
 # 3. Conduct analysis
 # Run fgsea with 'pathwaysH' and 'ranks'.
@@ -713,6 +733,16 @@ ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y=reorder(pathway, size),x=
   scale_color_gradientn(colours = c("red","blue")) + 
   labs(x='Normalized Enrichment Score', y=NULL ) + 
   theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
+
+# summeay 
+# IO_combo: 1.low expression
+# 2.a.pathway analaysis (Hallmark _ KEGG _raectom ( + PrediIO sig only forIO)), using copelete ---> 
+# 2.b. compute sig score ( rows: pathways-columns:scores): using predio functions- base don sig_info.(adjust csv)
+# cut off 80. 
+# 3. Correlation sigs_ sig hallmark with kegg_ if more that 90% incomommn rmeove theem.rmeove duplications
+# for all pathways. --> rmeove highly corrolated.
+# 4. correlation genomics and radiomics feature(subset by matching treatment, less scale of radiomics features).
+
 ```
 
 ##### KEGG Pathway Analysis {.tabset .tabset-pills}
@@ -744,7 +774,7 @@ kable(fgseaResTidy_kegg) %>%
 # Save fgseaRes_keg as txt file.
 write.table(fgseaResTidy_kegg, file.path(output_dir, "pathway_analysis", "full_fgseaRes_kegRank.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
 
-# Mark "significant" if adjusted p-value <= 0.05, else "non-significant".
+# Mark "significant" if adjusted adj p-value <= 0.05, else "non-significant".
 fgseaResTidy_kegg$adjPvalue <- ifelse(fgseaResTidy_kegg$padj <= 0.05, "significant", "non-significant")
 
 # Create a ggplot of significant pathways, with bars colored based on adjusted p-value significance.
