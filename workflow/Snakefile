@@ -1,34 +1,28 @@
 from damply import dirs as dmpdirs
 
-# could alternatively pass this in the CLI via `--configfile $CONFIG/config.yaml`
-# configfile: dmpdirs.CONFIG / "datasets" / "ISPY2.yaml"
+# Build combined dataset name using config values
+COMBINED_DATA_NAME = str(config['DATA_SOURCE']) + "_" + str(config['DATASET_NAME'])
+dataset = config["DATASET_NAME"]
 
-# Load the config file
-configfile: dmpdirs.CONFIG / "datasets" / "ISPY2.yaml"
-
-COMBINED_DATA_NAME = config['DATA_SOURCE'] + "_" + config['DATASET_NAME']
-
+# Include feature extraction rules
 #include: "scripts/radiomics/mit/run_mit.smk"
 include: "scripts/radiomics/feature_extraction/run_feature_extraction.smk"
 
-## 1. Binirize the masks
-# rule binarize_masks:
-#     input:
-#         config="config/datasets/ISPY2.yaml"
-#     output:
-#         touch("logs/binarize_masks.done")
-#     shell:
-#         """
-#         pixi run python workflow/scripts/radiomics/readii/process_masks.py --dataset ISPY2.yaml
-#         touch {output}
-#         """
+# Binarize segmentation masks
+rule binarize_masks:
+    output:
+        log_file = f"logs/binarize_masks_{dataset}.log"
+    shell:
+        """
+        pixi run python workflow/scripts/radiomics/readii/process_masks.py --dataset {dataset}.yaml > {output.log_file} 2>&1
+        """
 
-
-#2. feature extraction
+# Final target: merged radiomics feature CSV
 rule all:
     input:
-        dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}/feature_extracted.csv"
+       dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_feature_extracted.csv"
 
+# Legacy: original indexing and extraction pipeline (commented out below)
 # rule all:
 #     # Target rule
 #     input:
@@ -49,3 +43,5 @@ rule all:
 #         method=config['EXTRACTION']['METHOD']
 #     shell:
 #         "python workflow/scripts/radiomics/feature_extraction/index.py --dataset {params.dataset} --method {params.method}"
+
+
