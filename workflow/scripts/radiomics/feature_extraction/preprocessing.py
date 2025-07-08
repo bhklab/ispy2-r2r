@@ -98,51 +98,6 @@ def extract_feature(args):
     radiomic_features_dict = singleRadiomicFeatureExtraction(image, mask, args.param, randomSeed=10)
     pd.DataFrame([radiomic_features_dict]).to_csv(args.output, index=False)
 
-# def extract_feature(args):
-#     import traceback
-#     import shutil
-
-#     try:
-#         image = sitk.ReadImage(args.image)
-#         mask = sitk.ReadImage(args.mask)
-
-#         # Check if the mask has any label == 1
-#         mask_array = sitk.GetArrayFromImage(mask)
-#         if not np.any(mask_array == 1):
-#             print(f"[SKIP] Empty mask for: {args.mask}")
-#             raise ValueError("No label 1 found in mask.")
-
-#         # Run PyRadiomics feature extraction
-#         radiomic_features_dict = singleRadiomicFeatureExtraction(
-#             image, mask, args.param, randomSeed=10
-#         )
-
-#         if not radiomic_features_dict or not isinstance(radiomic_features_dict, dict):
-#             raise ValueError("Radiomic feature extraction returned None or invalid.")
-
-#         pd.DataFrame([radiomic_features_dict]).to_csv(args.output, index=False)
-
-#     except Exception as e:
-#         print(f"[ERROR] Skipping patient due to failure: {e}")
-#         traceback.print_exc()
-
-#         # ⏭️ Move patient directory to needs_review
-#         try:
-#             # assumes output is .../features/tmp_{patient}.csv
-#             patient_id = os.path.basename(args.output).replace("tmp_", "").replace(".csv", "")
-#             features_root = os.path.dirname(os.path.dirname(args.output))
-#             patient_dir = os.path.join(features_root, patient_id)
-#             review_dir = os.path.join(features_root, "needs_review", patient_id)
-
-#             os.makedirs(os.path.dirname(review_dir), exist_ok=True)
-#             if os.path.exists(patient_dir):
-#                 shutil.move(patient_dir, review_dir)
-#                 print(f"[INFO] Moved {patient_id} to needs_review folder.")
-#         except Exception as move_err:
-#             print(f"[WARNING] Could not move patient folder: {move_err}")
-
-#         sys.exit(1)
-
 # ------------------------------
 # Step 4: Merge all per-patient features
 # ------------------------------

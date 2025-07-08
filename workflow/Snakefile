@@ -20,7 +20,7 @@ rule binarize_masks:
 # Final target: merged radiomics feature CSV
 rule all:
     input:
-       dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_feature_extracted.csv"
+       dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_features.csv"
 
 # Legacy: original indexing and extraction pipeline (commented out below)
 # rule all:

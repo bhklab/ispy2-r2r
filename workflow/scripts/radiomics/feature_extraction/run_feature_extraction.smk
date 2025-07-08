@@ -121,7 +121,7 @@ rule extract_feature:
 # -----------------------------
 rule merge_features:
     output:
-        dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_feature_extracted.csv"
+        dmpdirs.RESULTS / f"radiomics/{COMBINED_DATA_NAME}_features.csv"
     shell:
         """
         mkdir -p $(dirname {output})
