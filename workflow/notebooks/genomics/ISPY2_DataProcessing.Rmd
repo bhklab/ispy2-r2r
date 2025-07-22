@@ -18,9 +18,8 @@ output:
     link-citations: true
 ---
 
-
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, results = 'asis')
 knitr::opts_knit$set(root.dir = normalizePath(".."))
 ```
 
@@ -42,7 +41,7 @@ This Script **processes and prepares** the **I-SPY2 dataset**, focusing on:
   - **Genomics**: Agilent 44K arrays  
   - **Radiomics**: MRI (DCE-MRI)   
 
-### Patient and Treatment Details
+#### Treatment Details
 - **Total Patients (RNA-seq)**: 987  
 - **Total Patients (MRI)**: 985 (719 I-SPY2 cases, 266 ACRIN-6698 cases)  
 - **Treatment Groups**:
@@ -56,7 +55,7 @@ This Script **processes and prepares** the **I-SPY2 dataset**, focusing on:
   - AMG-386 (Trebananib) ± Trastuzumab  
   - Neratinib, Ganetespib, Ganitumab, Pembrolizumab, Pertuzumab, T-DM1  
   
-#### Treatment Arms
+##### Treatment Arms
 - **Chemotherapy ± IO**  
   - Paclitaxel ± Trastuzumab  
   - Veliparib + Carboplatin  
@@ -82,9 +81,9 @@ This Script **processes and prepares** the **I-SPY2 dataset**, focusing on:
 
 ---
 
-## Section 1: Data Processing Steps
+## Section 1: Data Processing 
 
-### Load Required Libraries
+### Load Libraries
  
 ```{r libraries,include=TRUE,message=FALSE,warning=FALSE}
 library(here)
@@ -103,7 +102,7 @@ library(msigdbr)
 library(fgsea)
 ```
 
-### Load & Extract Data {.tabset .tabset-pills}
+### Load Genomics Data {.tabset .tabset-pills}
 
 Load MultiAssayExperiment `.rds` File**
 This step extracts **clinical, expression(Microarray quantile normalizated), and annotation data** for further analysis.
@@ -160,20 +159,28 @@ kable(head(annot, 20), caption = "Gene Annotation Data") %>%
   scroll_box(height = "400px")
 ```
 
-### Match Patients: Genomics & Radiomics Integration
+### Load Radiomics Data {.tabset .tabset-pills}
 
-This section identifies overlapping patients between genomics (gene expression) and radiomics (MRI scans) datasets.
+The radiomics dataset includes dynamic contrast-enhanced MRI (**DCE-MRI**) scans used to monitor tumor response to treatment.
 
-#### Step 1: Load Radiomics Metadata
+**Metadata Source:**
 
-The radiomics dataset contains dynamic contrast-enhanced MRI **(DCE-MRI)** scans used to monitor tumor response to treatment.  
+* **File:** `ISPY2-Imaging-Cohort-1-Clinical-Data.xlsx`
+* **Access:** [The Cancer Imaging Archive – I-SPY2 Collection](https://www.cancerimagingarchive.net/collection/ispy2/)
+* **Total Patients:** **985**
 
-**Metadata Source:**  
-- **File:** `ISPY2-Imaging-Cohort-1-Clinical-Data.xlsx`  
-- **Access:** [The Cancer Imaging Archive - I-SPY2 Collection](https://www.cancerimagingarchive.net/collection/ispy2/)  
-- **Total Patients:** **985**  
-  - **719** I-SPY2 cases  
-  - **266** [ACRIN-6698 cases](https://www.cancerimagingarchive.net/collection/ispy1/)  
+  * **719** I-SPY2 cases
+  * **266** [ACRIN-6698 cases](https://www.cancerimagingarchive.net/collection/ispy1/)
+
+**Radiomics (MRI) Data:**
+
+* Each patient has **4 MRI scans** (T1–T4)
+* MRI features include:
+
+  * Functional Tumor Volume (**FTV**)
+  * Longest Tumor Diameter
+  * Sphericity
+* Data collected from **22+ clinical centers**
 
 ```{r Load Radiomics Metadata}
 # Load radiomics clinical data
@@ -185,18 +192,9 @@ kable(Radiomics_clin, caption = "Radiomics Clinical Data") %>%
   scroll_box(height = "400px")
 ```
 
-#### Step 2: Summary of Radiomics Data
+### MatchPatients: Genomics and Radiomics
 
-- **Each patient has 4 MRI scans (T1-T4)**
-- **MRI features include:**
-  - Functional Tumor Volume (FTV)
-  - Longest Tumor Diameter
-  - Sphericity  
-- **Data collected from 22+ clinical centers**   
-
-#### Step 3: Identify Common Patients
-
-To integrate genomics and radiomics data, we **match patient IDs** across datasets.
+Identify overlapping patients between genomics (gene expression) and radiomics (MRI scans) datasets.
 
 ```{r check Patient Matching}
 # Prepare genomic clinical data
@@ -210,21 +208,15 @@ common_patients <- intersect(Genomics_clin$patientid, Radiomics_clin$Patient_ID)
 
 # Print count of common patients
 cat("Patients with both microarray and MRI data:", length(common_patients), "\n")
-```
 
-#### Step 4: Visualize Patient Overlap
-
-A Venn diagram illustrates genomics vs
-. radiomics patient overlap.
-
-```{r visualize patient overlap}
-# Create Venn diagram
+# Venn diagram
 venn_data <- list(Genomics = Genomics_clin$patientid, Radiomics = Radiomics_clin$Patient_ID)
 
 ggvenn(venn_data, fill_color = c("#A6CEE3", "#FB9A99"), stroke_size = 0.5, set_name_size = 4) +
   ggtitle("Overlap of Genomics (Microarray) and Radiomics (MRI) Patient IDs") +
   theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold"), plot.background = element_rect(fill = "white"), panel.background = element_blank())
 ```
+
 
 ### Merge Genomics & Radiomics Data
 
@@ -246,22 +238,20 @@ merged_clin <- merge(Genomics_clin, Radiomics_clin, by.x = "patientid", by.y = "
 # Sort by patient ID
 merged_clin <- merged_clin[order(merged_clin$patientid), ]
 
+# Save dataset as CSV
+write.csv(merged_clin, file = file.path(here(), "data/results/radiogenomics", "combined_clin_radiogenomic.csv"), row.names = FALSE)
+
 # Display merged dataset with scrolling
 kable(head(merged_clin,50), caption = "Merged Clinical Data (Genomics & Radiomics)") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
   scroll_box(height = "400px")
-
-# Save dataset as CSV
-write.csv(merged_clin, file = file.path(output_dir, "combined_clin_radiogenomic.csv"), row.names = FALSE)
-
 ```
 
+### Segmentation Overview
 
-### Segmentation Consistency Check
+We evaluated segmentation consistency by verifying that each patient had four **DCE-MRI** segmentation masks—one per time point—for reliable **Functional Tumor Volume (FTV)** analysis. Most patients met this requirement; those with fewer were flagged for review.
 
-We checked segmentation consistency by verifying whether each patient had four **DCE-MRI** segmentation masks, as required for accurate **Functional Tumor Volume (FTV)** analysis. Most patients met this, but some had fewer and were flagged for review.
-
-### Segmentation Process in DCE-MRI
+#### DCE-MRI Segmentation
 
 Each scan undergoes multiple segmentation steps:  
 1. **Manual VOI (Volume of Interest):** A rectangular region around the enhancing tumor.  
@@ -269,19 +259,20 @@ Each scan undergoes multiple segmentation steps:
 3. **Percent Enhancement (PE) Threshold:** Filters non-enhancing tissue.  
 4. **Connectivity Filter:** Ensures 3D tumor voxel connectivity.  
 5. **OMIT Regions:** Manual exclusion of non-tumor areas.  
+Segmentation masks are stored as **2D DICOM images**, aligned with the original **DCE-MRI scans**.
 
-**Segmentation masks are stored as 2D DICOM images** aligned with the original **DCE MRI scans**.  
-note: **Download masks from UCSF Box:** [Link](https://ucsf.box.com/s/d09xetaatzgnz2p9bxlqh50rrzilgcoj)  
+> 📥 **Download masks:** [UCSF Box](https://ucsf.box.com/s/d09xetaatzgnz2p9bxlqh50rrzilgcoj)
 
-### Segmentation Metadata {.tabset .tabset-pills}
 
-#### ISPY1: MRI Series Metadata  
-**Metadata for ISPY1** is stored in `ispy1_dce_series_info.xlsx`, containing data for **221 patients**. This dataset includes MRI series metadata for each patient, covering:  
+#### Segmentation Metadata {.tabset .tabset-pills}
 
-- **Patient ID & Time Point (T1–T4)**  
-- **MRI Series Description & Unique ID**  
-- **Signal Enhancement Ratio (SER) Calculation Indicator**  
-- **OMIT Region Counts (Non-Tumor Exclusion)**   
+##### ISPY1: MRI Metadata  
+Stored in `ispy1_dce_series_info.xlsx`, this file contains metadata for **221 patients**, including:
+
+* Patient ID and Time Points (T1–T4)
+* MRI Series Description and Unique ID
+* SER (Signal Enhancement Ratio) indicator
+* OMIT region counts (non-tumor exclusion markers)
 
 ```{r ISPY1 segmentation metadata}
 # Load ISPY1 segmentation metadata
@@ -296,14 +287,14 @@ kable(head(ispy1_dce_series_info, 20), caption = "DCE MRI Series Information") %
   scroll_box(height = "400px")
 ```
 
-#### ISPY2: MRI Series Metadata  
+##### ISPY2: MRI Metadata  
 
-Metadata for ISPY2 was extracted from `series-data1741883133411.csv`, containing data for **719 patients**. This dataset includes MRI series metadata for each patient, covering:  
+Metadata for ISPY2 was extracted from `series-data1741883133411.csv`, containing records for **719 patients**. This dataset includes MRI series-level information for each patient, including:
 
-- **Subject ID**  
-- **Study Description** (e.g., `"ISPY2_MRI_T0"`)  
-- **Number of Images**  
-- **Modality** (e.g., `"MR"`, `"SEG"`)  
+* **Subject ID**
+* **Study Description** (e.g., `"ISPY2_MRI_T0"`)
+* **Number of Images**
+* **Modality** (e.g., `"MR"`, `"SEG"`)  
 
 ```{r segmentation metadata}
 # Load ISPY2 segmentation metadata
@@ -328,7 +319,7 @@ ispy2_selected <- ispy2_dce_series_info[, c("PATIENT_ID", "TIME_POINT")]
 ispy1and2 <- merge(ispy1_selected, ispy2_selected, by = c("PATIENT_ID", "TIME_POINT"), all = TRUE)
 ```
 
-### Check Segmentation Consistency Across Time Points (T1-T4)  
+#### Segmentation Completeness Check (T1–T4) 
 
 Each of the 940 patients is expected to have at least four segmentation masks, one for each of their four MRI scans
 
@@ -346,8 +337,6 @@ kable(series_per_patient, caption = "Segmentation Counts per Patient") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
   scroll_box(height = "400px")
 ```
-
-### Patients with Missing Segmentations
 
 Patients missing **one or more segmentation masks** need further review (24 patients).
 
@@ -369,42 +358,32 @@ kable(patients_less_than_4, caption = "Patients with Less Than 4 Segmentation Ma
 
 **Objective:** Process microarray expression data to identify predictive and biologically meaningful features associated with treatment response.
 
-### 1. Subset to Radiogenomic Cohort
+### 1. Subset Radiogenomics
 
-* Matched clinical, microarray expression, and MRI data
-* Final dataset: **982 patients × 18,348 genes**
+982 patients shared between genomic and radiomics data; 18,348 genes.
 
 ```{r subset to Radiogenomics}
-# 1. Subset to common patients
-expr_data <- expr[, common_patients] #982
+# 1. Subset to common patients (982 patients)
+clin_data <- merged_clin
+expr_data <- expr[, common_patients]
 annot_data <- annot[annot$gene_name %in% common_patients , ]
-clin_data <- merged_clin[merged_clin$patientid %in% common_patients, ]
 ```
 
-### 2. Restrict to Protein-Coding Genes
+### 2. Keep Protein-Coding Genes
 
-* Retained only **protein-coding genes** based on **GENCODE annotations**
-** Genes:** 17,547
+* Retained only **protein-coding genes**(17,547) based on **GENCODE annotations**
 * *Optional:* Apply variance filtering to remove low-variance genes
 
-```{r restrict to preotein-coding genes}
+```{r restrict to pr-coding genes}
 # 1. Subset to common patients
 expr_data <- expr[, common_patients] #982
 annot_data <- annot[annot$gene_name %in% common_patients , ]
 clin_data <- merged_clin[merged_clin$patientid %in% common_patients, ]
 
-# 2. Restrict to Protein-Coding Genes.
+# 2. Restrict to Pr-Coding Genes.
 annot_proteincoding <- annot[annot$gene_type == "protein_coding",] # 17547 protein coding genes.
 expr_data <- expr_data[rownames(expr_data) %in% rownames(annot_proteincoding),]
 
-# TODO: optional low varience removal
-# plot a density plot
-plot(
-  density(as.numeric(as.matrix(expr_data)), na.rm = TRUE),
-  main = "Overall Expression Density",
-  xlab = "Expression",
-  ylab = "Density"
-)
 
 # Frequency table for the treatment columns
 DT::datatable(as.data.frame(table(merged_clin$treatment)), 
@@ -412,11 +391,33 @@ DT::datatable(as.data.frame(table(merged_clin$treatment)),
 DT::datatable(as.data.frame(table(merged_clin$treatmentid)), 
               colnames = c("Treatment ID", "Count"))
 
-#TODO:  vaitaion per treatment plots
+
+# Optional: low varience removal
+# plot a density plot
+plot(
+  density(as.numeric(as.matrix(expr_data)), na.rm = TRUE),
+  main = "Overall Expression Density (All treatments)",
+  xlab = "Expression",
+  ylab = "Density"
+)
+
+# Plot densities by treatment group
+treatments <- unique(na.omit(merged_clin$treatment))
+
+for (treat in treatments) {
+  patients <- merged_clin$patientid[merged_clin$treatment == treat]
+  expr_subset <- expr_data[, colnames(expr_data) %in% patients, drop = FALSE]
+  plot(
+    density(as.numeric(as.matrix(expr_subset)), na.rm = TRUE),
+    main = paste("Expression Density:", treat),
+    xlab = "Expression", ylab = "Density"
+  )
+}
 ```
 
-### 3. PredictIO RNA Signature Integration
+### 3. Add PredictIO Signatures
 
+(Optional) step:
 * Loaded **55 curated immune-oncology (IO) RNA signatures** (`.rda` format)
 * Each signature derived from **peer-reviewed publications**
 * Signatures used to assess **immune response**, **sensitivity**, or **resistance** to immune checkpoint blockade
@@ -458,24 +459,9 @@ kable(summary_df, caption = "Summary of gene overlap between IO signatures and e
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
   scroll_box(height = "400px")
 
-#TODO: 
-# - IO: known sig ( eg.50 RNA): start with subset of sig 
-# - chemo: two ways (low varience removal) 1. already publish sig for breast  2.MSIGDB( extract pathways)-GO-Reactom?: 80% cuoff , act like  sig example. GSVEA compute scores.
-# filteration by correlations base don thier scores.then smaller pathways. 
-
-# next steps: slected pathways with radiomcs features. 
 ```
 
-### 4. Differential Gene Expression Analysis (R vs NR) {.tabset .tabset-pills}
-
-* **Method:** `limma` package in R
-* **Comparison:** **Responders (R)** vs **Non-Responders (NR)**
-* **Adjustment:** Benjamini-Hochberg FDR correction
-* **Output:** `Limma_Fit.txt`
-* **Visualization:** Volcano plots showing log2 fold change vs –log10 adjusted p-value
-* **Total DE Genes Identified:** 5,870
-
-#### Full dataset analysis (no subsetting)
+### 4. DE Analysis(R vs NR) 
 
 ```{r DEG- Full dataset analysis,fig.width=7, fig.height=7}
 cat("### Full dataset analysis (no subsetting)\n")
@@ -530,13 +516,240 @@ cat(" No Significant gene names:\n")
 print(sig_genes_full)
 ```
 
-#### Subgroup Analysis by Treatment Type 
+
+### 5. Pathway Enrichment {.tabset .tabset-pills}
+
+#### MSigDB Hallmark Gene Sets
+
+* Gene sets downloaded from [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H)
+* Analysis: **GSEA using the `fgsea` R package**
+* Input: ranked gene list from differential expression results
+
+```{r pathway analysis,fig.width=7, fig.height=7}
+# Load human hallmark gene sets from MSigDB
+pathwaysDF <- msigdbr("Homo sapiens", category="H")
+
+# Create a list of gene symbols for each pathway
+pathwaysH <- split(as.character(pathwaysDF$gene_symbol), pathwaysDF$gs_name)
+
+# 1. Create ranks
+
+# Create 'ranks' vector from 'top.table' with logFC as values and gene names as names.
+ranks <- top_full$logFC
+names(ranks) <- top_full$Gene
+ranks <- sort(ranks, decreasing = T)
+
+# Preview the data table of ranks.
+kable(ranks) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+# 2. Bar Plot
+# Display the ranked fold changes.
+# barplot(ranks)
+
+# 3. Conduct analysis
+# Run fgsea with 'pathwaysH' and 'ranks'.
+#fgseaRes <- fgsea(pathwaysH, ranks)
+fgseaRes <- fgsea(pathways = pathwaysH, stats = ranks, nproc = 1)
+fgseaRes <- na.omit(fgseaRes)
+
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES)) #order by NES
+
+# Combine genes in leadingEdge with semicolons
+fgseaResTidy$leadingEdge <- sapply(fgseaResTidy$leadingEdge, paste, collapse = ";")
+fgseaResTidy <- fgseaResTidy[order(fgseaResTidy$padj), ]
+
+# Show in a Tidy table.
+kable(fgseaResTidy) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+# Save fgseaRes as txt file.
+write.table(fgseaResTidy, file.path(output_dir,"pathway_analysis","full_fgseaRes_HRank.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+
+# Mark "significant" if adjusted p-value <= 0.05, else "non-significant".
+fgseaResTidy$adjPvalue <- ifelse(fgseaResTidy$padj <= 0.05, "significant", "non-significant")
+
+# Define colors for significance: grey for non-significant and red for significant results.
+cols <- c("non-significant" = "grey", "significant" = "red")
+
+# Using ggplot: reorder pathways by NES, fill bars based on significance, flip coordinates for readability.
+ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES, fill = adjPvalue)) + geom_col() +
+    scale_fill_manual(values = cols) + coord_flip() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(x = "Pathway", y = "Normalized Enrichment Score", title = "Hallmark pathways NES
+         Enrichment Score from GSEA")
+
+# 4. GSEA Results Table Plot.
+# Plot GSEA table for significant pathways (padj < 0.05) using a GSEA parameter of 0.5.
+plotGseaTable(pathwaysH[fgseaRes$pathway[fgseaRes$padj < 0.05]], ranks, fgseaRes, gseaParam=0.5)
+
+# 5.  Enrichment score plot.
+# For significant pathways # 14 pathways.
+
+# Store the list of significant pathways (padj < 0.05).
+significant_pathways <- fgseaRes$pathway[fgseaRes$padj < 0.05]
+# Use a for loop to iterate and plot enrichment for each significant pathway
+# for (i in significant_pathways) {
+#   enrichment_plot <- plotEnrichment(pathwaysH[[i]], ranks)
+#   enrichment_plot <- enrichment_plot + ggtitle(paste("Enrichment Plot for Pathway:",i))
+#   print(enrichment_plot)
+# }
+
+# Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
+ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
+  scale_color_gradientn(colours = c("red","blue")) + 
+  labs(x='Normalized Enrichment Score', y=NULL ) + 
+  theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
+```
+
+#### KEGG Pathway Analysis {.tabset .tabset-pills}
+
+**KEGG Pathway Analysis (Legacy + Medicus)**
+* Used both **KEGG\_LEGACY** and **KEGG\_MEDICUS** gene sets
+* Significance cutoff for visualization: **FDR < 0.05**
+* Output: full results in tab-delimited `.txt` files
+
+##### KEGG_MEDICUS
+
+```{r pathway analysis dotplot, fig.width=16, fig.height=10}
+#Load KEGG_MEDICUS pathways.
+pathwaysKEGG_MED <- gmtPathways(file.path(input_dir, "c2.cp.kegg_medicus.v2023.2.Hs.symbols.gmt"))
+
+# Perform fgsea with KEGG pathways
+#fgseaRes_kegg <- fgsea(pathwaysKEGG_MED, ranks)
+fgseaRes_kegg <- fgsea(pathways = pathwaysKEGG_MED, stats = ranks, nproc = 1)
+
+# Organize and sort KEGG results by NES
+fgseaResTidy_kegg <- fgseaRes_kegg %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+
+# Combine genes in leadingEdge with semicolons
+fgseaResTidy_kegg$leadingEdge <- sapply(fgseaResTidy_kegg$leadingEdge, paste, collapse = ";")
+
+# Show in a Tidy table of keg.
+kable(fgseaResTidy_kegg) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+# Save fgseaRes_keg as txt file.
+write.table(fgseaResTidy_kegg, file.path(output_dir, "pathway_analysis", "full_fgseaRes_kegRank.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
+
+# Mark "significant" if adjusted adj p-value <= 0.05, else "non-significant".
+fgseaResTidy_kegg$adjPvalue <- ifelse(fgseaResTidy_kegg$padj <= 0.05, "significant", "non-significant")
+
+# Create a ggplot of significant pathways, with bars colored based on adjusted p-value significance.
+ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(reorder(pathway, NES), NES, fill = adjPvalue)) + 
+  geom_col() + 
+  scale_fill_manual(values = cols) + 
+  coord_flip() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(x = "Pathway", y = "Normalized Enrichment Score", title = "KEGG pathways NES Enrichment Score from GSEA")
+
+# Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
+ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
+  scale_color_gradientn(colours = c("red","blue")) + 
+  labs(x='Normalized Enrichment Score', y=NULL ) + 
+  theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold'))
+```
+
+##### KEGG_LEGACY
+
+```{r kegg_legacy, fig.width=9, fig.height=7}
+# # Load KEGG_MEDICUS pathways. pathwaysKEGG_LEG <-
+# gmtPathways(file.path(input_dir,"c2.cp.kegg_legacy.v2023.2.Hs.symbols.gmt"))
+#
+# # Perform fgsea with KEGG pathways fgseaResTidy_kegg_leg <-
+# fgsea(pathwaysKEGG_LEG, ranks)
+#
+# # Organize and sort KEGG results by NES fgseaResTidy_kegg_leg <-
+# fgseaResTidy_kegg_leg %>% as_tibble() %>% arrange(desc(NES))
+#
+# # Combine genes in leadingEdge with semicolons
+# fgseaResTidy_kegg_leg$leadingEdge <- sapply(fgseaResTidy_kegg_leg$leadingEdge,
+# paste, collapse = ";")
+#
+# # Show in a Tidy table of keg. kable(fgseaResTidy_kegg_leg) %>%
+# kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+# full_width = FALSE) %>% scroll_box(height = "400px")
+#
+# # Save fgseaRes_keg as txt file. write.table(fgseaResTidy_kegg_leg,
+# file.path(output_dir,"pathway_analysis","full_fgseaRes_KEGGRank_legacy.txt"),
+# sep = "\t", row.names = FALSE, quote = FALSE)
+#
+# # Plot significant pathways as points with a gradient color based on p-value
+# and size based on a 'size' variable.
+# ggplot(fgseaResTidy_kegg_leg[fgseaResTidy_kegg_leg$padj < 0.05, ],
+# aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size))
+# + scale_color_gradientn(colours = c("red","blue")) + labs(x='Normalized
+# Enrichment Score', y=NULL ) + theme( axis.title = element_text(face='bold'),
+# axis.text = element_text (face='bold') )
+```
+
+#### Over-Representation Analysis analysis (ORA)
+
+To identifies whether certain gene sets are over-represented in a target gene group.
+
+```{r ORA full toptable, fig.width=18, fig.height=12}
+# Set a vector of differentially expressed genes for ORA
+deGenes <- rownames(top_full)[top_full$pval < 0.05]  # ? genes
+
+# Defining the gene universe as all genes considered in the analysis
+geneUniverse <- rownames(expr_data)
+
+## Performing ORA
+
+# ORA for Hallmark pathways
+oraHallmark <- fora(pathways = pathwaysH, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+oraHallmark$Pathway_Set <- "Hallmark"
+oraHallmark$Significance <- ifelse(oraHallmark$pval < 0.05, "Significant", "Not Significant")
+
+# ORA for KEGG_MEDICUS pathways
+oraKeggMed <- fora(pathways = pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
+oraKeggMed$Significance <- ifelse(oraKeggMed$pval < 0.05, "Significant", "Not Significant")
+
+# # ORA for KEGG_LEGACY pathways
+# oraKeggLeg <- fora(pathways = pathwaysKEGG_LEG, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+# oraKeggLeg$Pathway_Set <- "KEGG_LEGACY"
+# oraKeggLeg$Significance <- ifelse(oraKeggLeg$pval < 0.05, "Significant", "Not Significant")
+
+# Display the top results for each pathway set
+kable(oraHallmark, caption = "Hallmark Pathway Enrichment Results") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+kable(oraKeggMed, caption = "KEGG Medicus Pathway Enrichment Results") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+# kable(oraKeggLeg, caption = "KEGG Legacy Pathway Enrichment Results") %>%
+#   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+#   scroll_box(height = "400px")
+
+write.table(transform(oraHallmark, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+            file = file.path(output_dir, "pathway_analysis", "Hallmark_ORA_Results.csv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+write.table(transform(oraKeggMed, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+            file = file.path(output_dir, "pathway_analysis", "KeggMed_ORA_Results.csv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+# write.table(transform(oraKeggLeg, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+#             file = file.path(output_dir, "pathway_analysis", "KeggLeg_ORA_Results.csv"),
+#             sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+### 6. DE by Treatment (R vs NR) 
 
 Treatment groups: `"chemo"`, `"chemo+targeted"`, `"IO+chemo"`, `"targeted"`
 
 **Summary of Differentially Expressed Genes by Treatment**
 
-| **Treatment**           | **FDR < 0.05** | **FDR < 0.05 & High FC** | **Significant Genes (`|log₂FC| ≥ 1.5`)**                                                                                                  |
+| **Treatment**           | **FDR < 0.05** | **FDR < 0.05 & High FC** | **Significant Genes (|log₂FC| ≥ 1.5)**                                                                                                  |
 |-------------------------|----------------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | Chemo                   | 0              | 0                         | –                                                                                                                                         |
 | Chemo + Targeted        | 4,152          | 1                         | AGR3                                                                                                                                    |
@@ -624,382 +837,209 @@ for (treatment in treatment_list) {
   # Optionally save gene list
   gene_file <- paste0(gsub("\\+", "_", treatment), "_significant_genes.txt")
   writeLines(sig_genes, file.path(output_dir,"DEG_analysis", gene_file))
+
 }
 ```
 
-### 5. Pathway Enrichment Analysis {.tabset .tabset-pills}
-
-**a. MSigDB Hallmark Pathways** 
-
-* Gene sets downloaded from [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H)
-* Analysis: **GSEA using the `fgsea` R package**
-* Input: ranked gene list from differential expression results
-
-**b. KEGG Pathway Analysis (Legacy + Medicus)**
-# TODO: use the large rone
-
-* Used both **KEGG\_LEGACY** and **KEGG\_MEDICUS** gene sets
-* Significance cutoff for visualization: **FDR < 0.05**
-* Output: full results in tab-delimited `.txt` files
-
-#### Full Dataset Enrichment Results 
-
-##### Hallmark Gene Sets
-
-```{r pathway analysis,fig.width=7, fig.height=7}
-
-#TODO: 
-# - IO: known sig ( eg.50 RNA): start with subset of sig 
-# - chemo: two ways (low varience removal) 1. already publish sig for breast 
-# 2.MSIGDB( extract pathways)-GO-Reactom?: 80% cuoff , act like  sig example. GSVEA compute scores.
-# filteration by correlations base don thier scores.then smaller pathways. 
-
-# next steps: slected pathways with radiomcs features.
-#starting unsupervsised so skip DE analaysis
-
-# Load human hallmark gene sets from MSigDB
-pathwaysDF <- msigdbr("Homo sapiens", category="H")
-
-# Create a list of gene symbols for each pathway
-pathwaysH <- split(as.character(pathwaysDF$gene_symbol), pathwaysDF$gs_name)
-
-# 1. Create ranks
-
-# Create 'ranks' vector from 'top.table' with logFC as values and gene names as names.
-ranks <- top_full$logFC
-names(ranks) <- top_full$Gene
-ranks <- sort(ranks, decreasing = T)
-
-# Preview the data table of ranks.
-kable(ranks) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-# 2. Bar Plot
-# Display the ranked fold changes.
-#barplot(ranks)
-
-# 3. Conduct analysis
-# Run fgsea with 'pathwaysH' and 'ranks'.
-fgseaRes <- fgsea(pathwaysH, ranks)
-fgseaRes <- na.omit(fgseaRes)
-
-fgseaResTidy <- fgseaRes %>%
-  as_tibble() %>%
-  arrange(desc(NES)) #order by NES
-
-# Combine genes in leadingEdge with semicolons
-fgseaResTidy$leadingEdge <- sapply(fgseaResTidy$leadingEdge, paste, collapse = ";")
-fgseaResTidy <- fgseaResTidy[order(fgseaResTidy$padj), ]
-
-# Show in a Tidy table.
-kable(fgseaResTidy) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-
-# Save fgseaRes as txt file.
-write.table(fgseaResTidy, file.path(output_dir,"pathway_analysis","full_fgseaRes_HRank.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
-
-# Mark "significant" if adjusted p-value <= 0.05, else "non-significant".
-fgseaResTidy$adjPvalue <- ifelse(fgseaResTidy$padj <= 0.05, "significant", "non-significant")
-
-# Define colors for significance: grey for non-significant and red for significant results.
-cols <- c("non-significant" = "grey", "significant" = "red")
-
-# Using ggplot: reorder pathways by NES, fill bars based on significance, flip coordinates for readability.
-ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES, fill = adjPvalue)) + geom_col() +
-    scale_fill_manual(values = cols) + coord_flip() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-    labs(x = "Pathway", y = "Normalized Enrichment Score", title = "Hallmark pathways NES
-         Enrichment Score from GSEA")
-
-# 4. GSEA Results Table Plot.
-# Plot GSEA table for significant pathways (padj < 0.05) using a GSEA parameter of 0.5.
-plotGseaTable(pathwaysH[fgseaRes$pathway[fgseaRes$padj < 0.05]], ranks, fgseaRes, gseaParam=0.5)
-
-# 5.  Enrichment score plot.
-# For significant pathways # 14 pathways.
-
-# Store the list of significant pathways (padj < 0.05).
-significant_pathways <- fgseaRes$pathway[fgseaRes$padj < 0.05]
-# Use a for loop to iterate and plot enrichment for each significant pathway
-# for (i in significant_pathways) {
-#   enrichment_plot <- plotEnrichment(pathwaysH[[i]], ranks)
-#   enrichment_plot <- enrichment_plot + ggtitle(paste("Enrichment Plot for Pathway:",i))
-#   print(enrichment_plot)
-# }
-
-# Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
-ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
-  scale_color_gradientn(colours = c("red","blue")) + 
-  labs(x='Normalized Enrichment Score', y=NULL ) + 
-  theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
-
-# summeay 
-# IO_combo: 1.low expression
-# 2.a.pathway analaysis (Hallmark _ KEGG _raectom ( + PrediIO sig only forIO)), using copelete ---> 
-# 2.b. compute sig score ( rows: pathways-columns:scores): using predio functions- base don sig_info.(adjust csv)
-# cut off 80. 
-# 3. Correlation sigs_ sig hallmark with kegg_ if more that 90% incomommn rmeove theem.rmeove duplications
-# for all pathways. --> rmeove highly corrolated.
-# 4. correlation genomics and radiomics feature(subset by matching treatment, less scale of radiomics features).
-
-```
-
-##### KEGG Pathway Analysis {.tabset .tabset-pills}
-
-To do KEGG pathway analysis, both KEGG_MEDICUS and KEGG_LEGACY are downloaded. The cutoff of 0.05 is applied for visualization, while the text files include the results across all gene sets.
-
-###### KEGG_MEDICUS
-
-```{r pathway analysis dotplot, fig.width=16, fig.height=10}
-#Load KEGG_MEDICUS pathways.
-pathwaysKEGG_MED <- gmtPathways(file.path(input_dir, "c2.cp.kegg_medicus.v2023.2.Hs.symbols.gmt"))
-
-# Perform fgsea with KEGG pathways
-fgseaRes_kegg <- fgsea(pathwaysKEGG_MED, ranks)
-
-# Organize and sort KEGG results by NES
-fgseaResTidy_kegg <- fgseaRes_kegg %>%
-  as_tibble() %>%
-  arrange(desc(NES))
-
-# Combine genes in leadingEdge with semicolons
-fgseaResTidy_kegg$leadingEdge <- sapply(fgseaResTidy_kegg$leadingEdge, paste, collapse = ";")
-
-# Show in a Tidy table of keg.
-kable(fgseaResTidy_kegg) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-
-# Save fgseaRes_keg as txt file.
-write.table(fgseaResTidy_kegg, file.path(output_dir, "pathway_analysis", "full_fgseaRes_kegRank.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
-
-# Mark "significant" if adjusted adj p-value <= 0.05, else "non-significant".
-fgseaResTidy_kegg$adjPvalue <- ifelse(fgseaResTidy_kegg$padj <= 0.05, "significant", "non-significant")
-
-# Create a ggplot of significant pathways, with bars colored based on adjusted p-value significance.
-ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(reorder(pathway, NES), NES, fill = adjPvalue)) + 
-  geom_col() + 
-  scale_fill_manual(values = cols) + 
-  coord_flip() + 
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  labs(x = "Pathway", y = "Normalized Enrichment Score", title = "KEGG pathways NES Enrichment Score from GSEA")
-
-# Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
-ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
-  scale_color_gradientn(colours = c("red","blue")) + 
-  labs(x='Normalized Enrichment Score', y=NULL ) + 
-  theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
-```
-###### KEGG_LEGACY
-
-```{r kegg_legacy, fig.width=9, fig.height=7}
-# Load KEGG_MEDICUS pathways.
-pathwaysKEGG_LEG <- gmtPathways(file.path(input_dir,"c2.cp.kegg_legacy.v2023.2.Hs.symbols.gmt"))
-
-# Perform fgsea with KEGG pathways
-fgseaResTidy_kegg_leg <- fgsea(pathwaysKEGG_LEG, ranks)
-
-# Organize and sort KEGG results by NES
-fgseaResTidy_kegg_leg <- fgseaResTidy_kegg_leg %>%
-  as_tibble() %>%
-  arrange(desc(NES))
-
-# Combine genes in leadingEdge with semicolons
-fgseaResTidy_kegg_leg$leadingEdge <- sapply(fgseaResTidy_kegg_leg$leadingEdge, paste, collapse = ";")
-
-# Show in a Tidy table of keg.
-kable(fgseaResTidy_kegg_leg) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-
-# Save fgseaRes_keg as txt file.
-write.table(fgseaResTidy_kegg_leg, file.path(output_dir,"pathway_analysis","full_fgseaRes_KEGGRank_legacy.txt"), sep = "\t", row.names = FALSE, quote = FALSE)
-
-# Plot significant pathways as points with a gradient color based on p-value and size based on a 'size' variable.
-ggplot(fgseaResTidy_kegg_leg[fgseaResTidy_kegg_leg$padj < 0.05, ], aes(y=reorder(pathway, size),x= NES)) + geom_point(aes(color=padj,size=size)) + 
-  scale_color_gradientn(colours = c("red","blue")) + 
-  labs(x='Normalized Enrichment Score', y=NULL ) + 
-  theme( axis.title = element_text(face='bold'), axis.text = element_text (face='bold') )
-```
-
-##### Over-Representation Analysis analysis (ORA)
-
-To identifies whether certain gene sets are over-represented in a target gene group.
-
-```{r ORA full toptable, fig.width=18, fig.height=12}
-# Set a vector of differentially expressed genes for ORA
-deGenes <- rownames(top.table)[top.table$adj.P.Val < 0.05]  # 5 genes
-
-# Defining the gene universe as all genes considered in the analysis
-geneUniverse <- rownames(expr_data)
-
-## Performing ORA
-
-# ORA for Hallmark pathways
-oraHallmark <- fora(pathways = pathwaysH, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
-oraHallmark$Pathway_Set <- "Hallmark"
-oraHallmark$Significance <- ifelse(oraHallmark$padj < 0.05, "Significant", "Not Significant")
-
-# ORA for KEGG_MEDICUS pathways
-oraKeggMed <- fora(pathways = pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
-oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
-oraKeggMed$Significance <- ifelse(oraKeggMed$padj < 0.05, "Significant", "Not Significant")
-
-# ORA for KEGG_LEGACY pathways
-oraKeggLeg <- fora(pathways = pathwaysKEGG_LEG, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
-oraKeggLeg$Pathway_Set <- "KEGG_LEGACY"
-oraKeggLeg$Significance <- ifelse(oraKeggLeg$padj < 0.05, "Significant", "Not Significant")
-
-# Display the top results for each pathway set
-kable(oraHallmark, caption = "Hallmark Pathway Enrichment Results") %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-
-kable(oraKeggMed, caption = "KEGG Medicus Pathway Enrichment Results") %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
-  scroll_box(height = "400px")
-
-DT::datatable(oraKeggLeg, 
-              caption = htmltools::tags$caption("KEGG Legacy Pathway Enrichment Results"),
-              options = list(pageLength = 10, scrollX = TRUE))
-
-write.table(transform(oraHallmark, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
-            file = file.path(output_dir, "pathway_analysis", "Hallmark_ORA_Results.csv"),
-            sep = "\t", row.names = FALSE, quote = FALSE)
-
-write.table(transform(oraKeggMed, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
-            file = file.path(output_dir, "pathway_analysis", "KeggMed_ORA_Results.csv"),
-            sep = "\t", row.names = FALSE, quote = FALSE)
-
-write.table(transform(oraKeggLeg, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
-            file = file.path(output_dir, "pathway_analysis", "KeggLeg_ORA_Results.csv"),
-            sep = "\t", row.names = FALSE, quote = FALSE)
-
-```
-
-#### Enrichment Results by Treatment Subtype
-
-##### GSEA + ORA + Visualizations
-
-```{r GSEA + ORA + Visualizations}
-# Define treatment groups
-treatment_list <- c("chemo", "chemo+targeted", "IO+chemo", "targeted")
-
-# Define helper functions for visualization
-plot_gsea_outputs <- function(res, title_prefix) {
-  res$adjPvalue <- ifelse(res$padj <= 0.05, "significant", "non-significant")
-  cols <- c("non-significant" = "grey", "significant" = "red")
-
-  # NES barplot
-  print(ggplot(res, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
-          geom_col() +
-          scale_fill_manual(values = cols) +
-          coord_flip() +
-          labs(title = paste0(title_prefix, " - NES (GSEA)"),
-               x = "Pathway", y = "NES") +
-          theme(axis.text.y = element_text(size = 6),
-                axis.title = element_text(face = 'bold')))
-
-  # Dotplot
-  print(ggplot(res[res$padj < 0.05, ], aes(y = reorder(pathway, size), x = NES)) +
-          geom_point(aes(color = padj, size = size)) +
-          scale_color_gradientn(colours = c("red", "blue")) +
-          labs(title = paste0(title_prefix, " - Dotplot (GSEA)"),
-               x = "NES", y = "Pathway") +
-          theme(axis.text.y = element_text(size = 6),
-                axis.title = element_text(face = 'bold')))
-}
-
-plot_ora_outputs <- function(res, title_prefix) {
-  print(ggplot(res[res$padj < 0.05, ], aes(y = reorder(pathway, overlap), x = -log10(pval))) +
-          geom_point(aes(color = padj, size = overlap)) +
-          scale_color_gradientn(colours = c("red", "blue")) +
-          labs(title = paste0(title_prefix, " - ORA Dotplot"),
-               x = "-log10(p-value)", y = "Pathway") +
-          theme(axis.text.y = element_text(size = 6),
-                axis.title = element_text(face = 'bold')))
-}
-
-# Main loop
-for (treatment in treatment_list) {
-  cat("### Processing:", treatment, "\n")
-
-  # Get top table and ranks
-  top_table <- top_table_list[[treatment]]
-  ranks <- setNames(top_table$logFC, top_table$Gene)
+### 7. Enrichment by Treatment {.tabset .tabset-pills}
+
+#### MSigDB Hallmark Gene Sets
+
+```{r per-treat hallmark,fig.width=7, fig.height=7}
+fgsea_result_list <- list()
+fgsea_plot_list <- list()
+
+for (treatment in names(top_table_list)) {
+  message("Running GSEA for: ", treatment)
+  
+  # Get ranked genes
+  top_full <- top_table_list[[treatment]]
+  ranks <- top_full$logFC
+  names(ranks) <- top_full$Gene
   ranks <- sort(ranks, decreasing = TRUE)
-  deGenes <- rownames(top_table)[top_table$adj.P.Val < 0.05]
+
+  # Run GSEA
+  #fgseaRes <- fgsea(pathways = pathwaysH, stats = ranks)
+  fgseaRes <- fgsea(pathways = pathwaysH, stats = ranks, nproc = 1)
+
+  fgseaRes <- na.omit(fgseaRes)
+  fgseaResTidy <- fgseaRes %>%
+    as_tibble() %>%
+    arrange(desc(NES)) %>%
+    mutate(
+      leadingEdge = sapply(leadingEdge, paste, collapse = ";"),
+      adjPvalue = ifelse(padj <= 0.05, "significant", "non-significant")
+    )
+
+  fgsea_result_list[[treatment]] <- fgseaResTidy
+
+  # Barplot for NES
+  p <- ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+    geom_col() +
+    scale_fill_manual(values = c("significant" = "red", "non-significant" = "grey")) +
+    coord_flip() +
+    theme_minimal() +
+    labs(title = paste("Hallmark NES -", treatment), x = "Pathway", y = "Normalized Enrichment Score")
+
+
+  fgsea_plot_list[[treatment]] <- p
+  print(p)
+
+  print(
+    kable(fgseaResTidy, caption = paste("fgsea results -", treatment)) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+      scroll_box(height = "400px")
+  )
+}
+```
+
+#### KEGG_MEDICUS Pathway Analysis {.tabset .tabset-pills}
+
+no significant pathways for targetd
+
+```{r per-treat Kegg dotplot, fig.width=16, fig.height=10}
+fgsea_kegg_result_list <- list()
+fgsea_kegg_barplot_list <- list()
+fgsea_kegg_dotplot_list <- list()
+
+for (treatment in names(top_table_list)) {
+  message("Running KEGG GSEA for: ", treatment)
+
+  # Ranked gene list
+  top_full <- top_table_list[[treatment]]
+  ranks <- setNames(top_full$logFC, top_full$Gene)
+  ranks <- sort(ranks, decreasing = TRUE)
+
+  # Run fgsea
+  fgseaRes_kegg <- fgsea(pathways = pathwaysKEGG_MED, stats = ranks, nproc = 1)
+  fgseaRes_kegg <- na.omit(fgseaRes_kegg)
+
+  # Format tidy results
+  fgseaResTidy_kegg <- fgseaRes_kegg %>%
+    as_tibble() %>%
+    arrange(desc(NES)) %>%
+    mutate(
+      leadingEdge = sapply(leadingEdge, paste, collapse = ";"),
+      adjPvalue = ifelse(padj <= 0.05, "significant", "non-significant")
+    )
+
+  fgsea_kegg_result_list[[treatment]] <- fgseaResTidy_kegg
+  write.table(
+    fgseaResTidy_kegg,
+    file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_fgseaRes_kegg.txt")),
+    sep = "\t", row.names = FALSE, quote = FALSE
+  )
+  sig_fgsea <- fgseaResTidy_kegg %>% filter(padj <= 0.05)
+
+  # --- Plot 1: Bar plot of significant NES ---
+  p_bar <- ggplot(sig_fgsea, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+    geom_col() +
+    scale_fill_manual(values = c("significant" = "red")) +
+    coord_flip() +
+    theme_minimal() +
+    labs(
+      x = "Pathway", y = "Normalized Enrichment Score (NES)",
+      title = paste("KEGG NES -", treatment)
+    )
+
+  fgsea_kegg_barplot_list[[treatment]] <- p_bar
+  print(p_bar)
+
+  # --- Plot 2: Dot plot by size and padj ---
+  p_dot <- ggplot(sig_fgsea, aes(y = reorder(pathway, size), x = NES)) +
+    geom_point(aes(color = padj, size = size)) +
+    scale_color_gradientn(colours = c("red", "blue")) +
+    labs(x = "NES", y = NULL, title = paste("KEGG Dot Plot -", treatment)) +
+    theme(axis.title = element_text(face = 'bold'), axis.text = element_text(face = 'bold'))
+
+  fgsea_kegg_dotplot_list[[treatment]] <- p_dot
+  print(p_dot)
+
+  # --- Optional table display ---
+  print(
+    kable(fgseaResTidy_kegg, caption = paste("KEGG GSEA results -", treatment)) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+      scroll_box(height = "400px")
+  )
+}
+
+```
+
+#### Over-Representation Analysis analysis (per-treat) (ORA)
+
+```{r per-treat ORA , fig.width=18, fig.height=12}
+ora_hallmark_result_list <- list()
+ora_keggmed_result_list <- list()
+
+for (treatment in names(top_table_list)) {
+  message("Running ORA for: ", treatment)
+
+  # Extract top table and DE genes
+  top_full <- top_table_list[[treatment]]
+  deGenes <- rownames(top_full)[top_full$pval < 0.05]
+  
+  # Gene universe is all genes in expr_data (assumes same for all treatments)
   geneUniverse <- rownames(expr_data)
 
-  ## --- GSEA Hallmark ---
-  gsea_h <- fgsea(pathwaysH, ranks) %>%
-    as_tibble() %>%
-    arrange(desc(NES)) %>%
-    mutate(leadingEdge = sapply(leadingEdge, paste, collapse = ";"))
-  write.table(gsea_h, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_fgsea_Hallmark.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_gsea_outputs(gsea_h, paste("Hallmark", treatment))
+  # # Skip if not enough DE genes
+  # if (length(deGenes) < 10) {
+  #   message("Skipping ORA for ", treatment, ": too few DE genes")
+  #   next
+  # }
 
-  ## --- GSEA KEGG_MEDICUS ---
-  gsea_med <- fgsea(pathwaysKEGG_MED, ranks) %>%
-    as_tibble() %>%
-    arrange(desc(NES)) %>%
-    mutate(leadingEdge = sapply(leadingEdge, paste, collapse = ";"))
-  write.table(gsea_med, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_fgsea_KEGG_Medicus.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_gsea_outputs(gsea_med, paste("KEGG Medicus", treatment))
+  # ORA Hallmark
+  oraHallmark <- fora(
+    pathways = pathwaysH,
+    genes = deGenes,
+    universe = geneUniverse,
+    minSize = 15, maxSize = 500
+  )
+  oraHallmark$Pathway_Set <- "Hallmark"
+  oraHallmark$Significance <- ifelse(oraHallmark$pval < 0.05, "Significant", "Not Significant")
+  oraHallmark$Treatment <- treatment
+  ora_hallmark_result_list[[treatment]] <- oraHallmark
 
-  ## --- GSEA KEGG_LEGACY ---
-  gsea_leg <- fgsea(pathwaysKEGG_LEG, ranks) %>%
-    as_tibble() %>%
-    arrange(desc(NES)) %>%
-    mutate(leadingEdge = sapply(leadingEdge, paste, collapse = ";"))
-  write.table(gsea_leg, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_fgsea_KEGG_Legacy.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_gsea_outputs(gsea_leg, paste("KEGG Legacy", treatment))
+  # ORA KEGG_MEDICUS
+  oraKeggMed <- fora(
+    pathways = pathwaysKEGG_MED,
+    genes = deGenes,
+    universe = geneUniverse,
+    minSize = 15, maxSize = 500
+  )
+  oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
+  oraKeggMed$Significance <- ifelse(oraKeggMed$pval < 0.05, "Significant", "Not Significant")
+  oraKeggMed$Treatment <- treatment
+  ora_keggmed_result_list[[treatment]] <- oraKeggMed
 
-  ## --- ORA Hallmark ---
-  ora_h <- fora(pathwaysH, genes = deGenes, universe = geneUniverse) %>%
-    mutate(Pathway_Set = "Hallmark", 
-           Significance = ifelse(padj < 0.05, "Significant", "Not Significant"),
-           overlapGenes = sapply(overlapGenes, paste, collapse = ","))
-  write.table(ora_h, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_ORA_Hallmark.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_ora_outputs(ora_h, paste("Hallmark ORA", treatment))
+  # Save to .tsv files
+  write.table(
+    transform(oraHallmark, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+    file = file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_Hallmark_ORA.tsv")),
+    sep = "\t", row.names = FALSE, quote = FALSE
+  )
 
-  ## --- ORA KEGG_MEDICUS ---
-  ora_med <- fora(pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse) %>%
-    mutate(Pathway_Set = "KEGG_MEDICUS",
-           Significance = ifelse(padj < 0.05, "Significant", "Not Significant"),
-           overlapGenes = sapply(overlapGenes, paste, collapse = ","))
-  write.table(ora_med, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_ORA_KEGG_Medicus.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_ora_outputs(ora_med, paste("KEGG Medicus ORA", treatment))
+  write.table(
+    transform(oraKeggMed, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+    file = file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_KeggMed_ORA.tsv")),
+    sep = "\t", row.names = FALSE, quote = FALSE
+  )
 
-  ## pathwaysKEGG_MED ORA KEGG_LEGACY ---
-  ora_leg <- fora(pathwaysKEGG_LEG, genes = deGenes, universe = geneUniverse) %>%
-    mutate(Pathway_Set = "KEGG_LEGACY",
-           Significance = ifelse(padj < 0.05, "Significant", "Not Significant"),
-           overlapGenes = sapply(overlapGenes, paste, collapse = ","))
-  write.table(ora_leg, file = file.path(output_dir, "pathway_analysis", paste0(treatment, "_ORA_KEGG_Legacy.txt")),
-              sep = "\t", row.names = FALSE, quote = FALSE)
-  plot_ora_outputs(ora_leg, paste("KEGG Legacy ORA", treatment))
-
-  cat("✓ Finished:", treatment, "\n\n")
+  # Optional: Print top hits
+  print(kable(head(oraHallmark, 10), caption = paste("Top Hallmark ORA -", treatment)) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE))
 }
+
 ```
 
-### 6. Correlation of Gene Features with Treatment Response
+### 8. Gene–Response Correlation
 
 * Tool: [`PredictioR`](https://github.com/bhklab/PredictioR) R package
 * Goal: identify individual gene-level associations with response status (R vs NR)
 
-
 ```{r Gnee corrolation with response}
 ```
 
-### 7. Stratified PredictIO Signature Analysis
+### 9. Stratified Signature Analysis
 
 * Repeated **signature-based analysis** (Step 3) within subgroups
 * Netx step: Grouped patients by **treatment arms** to detect treatment-specific associations
