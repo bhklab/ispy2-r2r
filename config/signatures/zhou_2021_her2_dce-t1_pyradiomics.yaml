@@ -1,0 +1,22 @@
+source: Radiomics Signatures Based on Multiparametric MRI for the Preoperative Prediction of the HER2 Status of Patients with Breast Cancer (https://doi.org/10.1016/j.acra.2020.05.040)
+model: Support Vector Machine
+signature:
+    'exponential_glszm_SmallAreaHighGrayLevelEmphasis':
+    'exponential_glszm_GrayLevelVariance':
+    'exponential_glcm_Imc2':
+    'logarithm_firstorder_10Percentile':
+    'exponential_glcm_MCC':
+    'wavelet-LHL_firstorder_Minimum':
+    'lbp-3D-m1_firstorder_10Percentile':
+    'lbp-3D-m2_glszm_GrayLevelNonUniformityNormalized':
+    'lbp-2D_firstorder_InterquartileRange':
+    'wavelet-HHH_firstorder_Minimum':
+    'wavelet-HHH_glszm_SmallAreaHighGrayLevelEmphasis':
+    'wavelet-HHH_glrlm_ShortRunHighGrayLevelEmphasis':
+    'wavelet-LHL_glcm_Correlation':
+    'lbp-3D-k_glcm_ClusterProminence':
+    'lbp-2D_glcm_MCC':
+    'lbp-2D_glcm_Imc2':
+    
+
+
