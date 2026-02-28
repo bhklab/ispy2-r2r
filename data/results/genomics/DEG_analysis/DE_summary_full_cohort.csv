@@ -1,0 +1,2 @@
+"Cohort","FDR < 0.05","FDR & abs(logFC) >= 1.0","FDR & abs(logFC) >= 1.5","Genes (logFC >= 1.0)","Genes (logFC >= 1.5)"
+"Full (982 patients)",5870,15,0,"SCUBE2, CXCL9, IDO1, CXCL13, S100A8, CCL18, S100A9, NKAIN1, AGR3, NPY1R, GFRA1, UBD, MMP1, TFF1, AGR2","–"
