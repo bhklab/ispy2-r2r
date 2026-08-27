@@ -4,5 +4,7 @@ rawdata/*
 procdata/*
 !procdata/README.md
 
-#results/*
-#!results/README.md
+results/*
+!results/README.md
+!results/radiomics
+!results/genomics
