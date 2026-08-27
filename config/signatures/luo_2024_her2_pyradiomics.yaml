@@ -1,11 +1,10 @@
-source: MRI-based machine learning radiomics for prediction of HER2 expression status in breast invasive ductal carcinoma (doi: 10.1016/j.ejro.2024.100592)
+source: MRI-based machine learning radiomics for prediction of HER2 expression status in breast invasive ductal carcinoma (doi 10.1016/j.ejro.2024.100592)
 model: Random Forest
 image_types: Axial fat saturation T2-weighted imaging and axial contrast-enhanced T1-weighted imaging
 signature:
-    'original_GLRLM_RunEntropy':
-    'wavelet-LHL_GLCM_DifferenceVariance':
-    'wavelet-LHL_GLCM_DifferenceVariance':
-    'wavelet.LHH_GLRLM_LowGrayLevelRunEmphasis':
+    'original_glrlm_RunEntropy':
+    'wavelet-LHL_glcm_DifferenceVariance':
+    'wavelet-LHH_glrlm_LowGrayLevelRunEmphasis':
     
 
 
