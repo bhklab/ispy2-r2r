@@ -339,7 +339,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/dd/db/4376f039fb5fe38bd4718c363fe1a395f944a6a0921a723d847d07769770/med_imagetools-2.11.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b6/b8/7a6e9c13c79709cdd2f22ee849f058e6da76892d141a67acc0e6c30d845c/multidict-6.5.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ff/fb/12f4a971467aac3cb7cbccbbfca5d0f05e23722068112c1ac4a393613ebe/narwhals-1.44.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/07/c7/d64168da60332c17d24c0d2f08bdf3987e8d1ae9d84b5bbd0eec2eb26a55/networkx-3.6-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0d/b4/fbeb1612aab895d592375692d29bc98710d7026067b9a97d8ea87d8d029c/orcestra_downloader-0.15.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/27/6f/875e8e282105350b9a5341c0222a13419758545ae32ad6e0fcf5f64d76aa/orjson-3.10.18-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fe/7c/d8b1330458e4d2f3f45d9508796d7caf0c0d3764c00c823d10f6f1a3b76d/pillow-11.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
@@ -716,7 +716,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/dd/db/4376f039fb5fe38bd4718c363fe1a395f944a6a0921a723d847d07769770/med_imagetools-2.11.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b6/b8/7a6e9c13c79709cdd2f22ee849f058e6da76892d141a67acc0e6c30d845c/multidict-6.5.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ff/fb/12f4a971467aac3cb7cbccbbfca5d0f05e23722068112c1ac4a393613ebe/narwhals-1.44.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/07/c7/d64168da60332c17d24c0d2f08bdf3987e8d1ae9d84b5bbd0eec2eb26a55/networkx-3.6-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0d/b4/fbeb1612aab895d592375692d29bc98710d7026067b9a97d8ea87d8d029c/orcestra_downloader-0.15.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/27/6f/875e8e282105350b9a5341c0222a13419758545ae32ad6e0fcf5f64d76aa/orjson-3.10.18-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fe/7c/d8b1330458e4d2f3f45d9508796d7caf0c0d3764c00c823d10f6f1a3b76d/pillow-11.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
@@ -1083,7 +1083,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/dd/db/4376f039fb5fe38bd4718c363fe1a395f944a6a0921a723d847d07769770/med_imagetools-2.11.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b6/b8/7a6e9c13c79709cdd2f22ee849f058e6da76892d141a67acc0e6c30d845c/multidict-6.5.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ff/fb/12f4a971467aac3cb7cbccbbfca5d0f05e23722068112c1ac4a393613ebe/narwhals-1.44.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/07/c7/d64168da60332c17d24c0d2f08bdf3987e8d1ae9d84b5bbd0eec2eb26a55/networkx-3.6-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0d/b4/fbeb1612aab895d592375692d29bc98710d7026067b9a97d8ea87d8d029c/orcestra_downloader-0.15.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/27/6f/875e8e282105350b9a5341c0222a13419758545ae32ad6e0fcf5f64d76aa/orjson-3.10.18-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/fe/7c/d8b1330458e4d2f3f45d9508796d7caf0c0d3764c00c823d10f6f1a3b76d/pillow-11.2.1-cp312-cp312-manylinux_2_28_x86_64.whl
@@ -3746,41 +3746,49 @@ packages:
   - pkg:pypi/nest-asyncio?source=hash-mapping
   size: 11543
   timestamp: 1733325673691
-- pypi: https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl
+- pypi: https://files.pythonhosted.org/packages/07/c7/d64168da60332c17d24c0d2f08bdf3987e8d1ae9d84b5bbd0eec2eb26a55/networkx-3.6-py3-none-any.whl
   name: networkx
-  version: 3.4.2
-  sha256: df5d4365b724cf81b8c6a7312509d0c22386097011ad1abe274afd5e9d3bbc5f
+  version: '3.6'
+  sha256: cdb395b105806062473d3be36458d8f1459a4e4b98e236a66c3a48996e07684f
   requires_dist:
-  - numpy>=1.24 ; extra == 'default'
-  - scipy>=1.10,!=1.11.0,!=1.11.1 ; extra == 'default'
-  - matplotlib>=3.7 ; extra == 'default'
+  - asv ; extra == 'benchmarking'
+  - virtualenv ; extra == 'benchmarking'
+  - numpy>=1.25 ; extra == 'default'
+  - scipy>=1.11.2 ; extra == 'default'
+  - matplotlib>=3.8 ; extra == 'default'
   - pandas>=2.0 ; extra == 'default'
-  - changelist==0.5 ; extra == 'developer'
-  - pre-commit>=3.2 ; extra == 'developer'
-  - mypy>=1.1 ; extra == 'developer'
-  - rtoml ; extra == 'developer'
-  - sphinx>=7.3 ; extra == 'doc'
-  - pydata-sphinx-theme>=0.15 ; extra == 'doc'
-  - sphinx-gallery>=0.16 ; extra == 'doc'
+  - pre-commit>=4.1 ; extra == 'developer'
+  - mypy>=1.15 ; extra == 'developer'
+  - sphinx>=8.0 ; extra == 'doc'
+  - pydata-sphinx-theme>=0.16 ; extra == 'doc'
+  - sphinx-gallery>=0.18 ; extra == 'doc'
   - numpydoc>=1.8.0 ; extra == 'doc'
-  - pillow>=9.4 ; extra == 'doc'
+  - pillow>=10 ; extra == 'doc'
   - texext>=0.6.7 ; extra == 'doc'
   - myst-nb>=1.1 ; extra == 'doc'
   - intersphinx-registry ; extra == 'doc'
-  - osmnx>=1.9 ; extra == 'example'
+  - osmnx>=2.0.0 ; extra == 'example'
   - momepy>=0.7.2 ; extra == 'example'
   - contextily>=1.6 ; extra == 'example'
   - seaborn>=0.13 ; extra == 'example'
   - cairocffi>=1.7 ; extra == 'example'
   - igraph>=0.11 ; extra == 'example'
   - scikit-learn>=1.5 ; extra == 'example'
+  - iplotx>=0.9.0 ; extra == 'example'
   - lxml>=4.6 ; extra == 'extra'
   - pygraphviz>=1.14 ; extra == 'extra'
   - pydot>=3.0.1 ; extra == 'extra'
   - sympy>=1.10 ; extra == 'extra'
+  - build>=0.10 ; extra == 'release'
+  - twine>=4.0 ; extra == 'release'
+  - wheel>=0.40 ; extra == 'release'
+  - changelist==0.5 ; extra == 'release'
   - pytest>=7.2 ; extra == 'test'
   - pytest-cov>=4.0 ; extra == 'test'
-  requires_python: '>=3.10'
+  - pytest-xdist>=3.0 ; extra == 'test'
+  - pytest-mpl ; extra == 'test-extras'
+  - pytest-randomly ; extra == 'test-extras'
+  requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/noarch/notebook-shim-0.2.4-pyhd8ed1ab_1.conda
   sha256: 7b920e46b9f7a2d2aa6434222e5c8d739021dbc5cc75f32d124a8191d86f9056
   md5: e7f89ea5f7ea9401642758ff50a2d9c1
