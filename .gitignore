@@ -176,3 +176,5 @@ logs
 # Snakemake
 .snakemake/
 .Rproj.user
+
+.snakemake
