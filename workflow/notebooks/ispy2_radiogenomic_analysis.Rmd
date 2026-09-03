@@ -1,0 +1,1901 @@
+---
+title: "I-SPY2 Radiogenomic Analysis"
+subtitle: "Exploring Molecular and Radiological Features of Treatment Response in Breast Cancer"
+author: "Nasim Bondar Sahebi"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: 
+  rmdformats::readthedown:
+    toc_depth: 4
+    theme: lumen
+    highlight: espresso
+    code_folding: show
+    params:
+      palette: "npg"
+      size: 1
+      showlabels: false
+      ellipse: true
+    css: "styles/custom.css"
+    link-citations: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, results = 'asis')
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+```
+
+## Study Rationale & Analysis Framework
+
+This analysis integrates multi-modal data from the I-SPY2 trial to investigate molecular and radiological features associated with neoadjuvant treatment response in breast cancer, following the radiogenomic framework proposed by [Sun et al. (PMID: 30120041)](https://pubmed.ncbi.nlm.nih.gov/30120041/).
+
+### Data Modalities
+
+- **Genomics:** Microarray expression profiling (Agilent 44K) for 987 patients
+- **Radiomics:** MRI-derived tumor features from 985 patients using DCE-MRI across four timepoints (T0–T3)
+- **Matched cohort:** 982 patients with both genomic and radiomic data
+
+### Analysis Pipeline
+
+**Phase 1: Genomics (Complete)**
+
+1. Preprocess expression data, filter to 17,547 protein-coding genes
+2. Differential expression analysis (R vs NR) — full cohort and per treatment
+3. Pathway enrichment (GSEA + ORA) using Hallmark and KEGG gene sets
+4. Gene–response correlation (DE hits, PredictIO signatures, immune/luminal markers)
+5. Stratified signature analysis by treatment arm
+
+**Key Genomic Findings:**
+
+- **IO+Chemo (69 patients, 47 DE genes):**
+  - Responders: immune-hot — LAMP3, CCL13, IDO1, CRABP1, CHI3L2, CXCL13, CXCL9, MARCO, UBD, KRT5
+  - Non-responders: hormone-driven — CA12, AGR2, FOXA1, AR, ACOX2, GATA3, TFF1, TFF3, SCUBE2, MSMB
+  - Pathways up in responders: interferon gamma, allograft rejection, interferon alpha, IL6/JAK/STAT3, E2F, G2M
+  - Pathways up in non-responders: estrogen response early/late, EMT, myogenesis
+- **Targeted (52 patients, 3 DE genes):**
+  - Responders: GRB7, MNX1, PNMT (GRB7 is HER2-associated, co-amplified with ERBB2)
+  - Pathways up in responders: mTORC1 signaling, interferon gamma, inflammatory response, glycolysis, hypoxia
+  - Pathways up in non-responders: estrogen response early/late, WNT/beta-catenin, EMT
+- **Chemo (179 patients):** 0 DE genes — no signal
+- **Chemo+Targeted (687 patients):** 4,152 FDR significant genes but only 1 with high fold change: AGR3
+- **Across all arms:** Estrogen-driven tumors resist treatment regardless of type
+
+**Phase 2: Radiomics (In Progress)**
+
+1. **T0 Feature Extraction:**
+   - Extract baseline radiomic features using PyRadiomics (shape, first order, GLCM, etc.)
+   - Include 3 features from Chitalia et al.(#TODO)
+   - Filter small/missing segmentations
+   - Select earliest AcquisitionDate per patient from H4H index CSV
+2. **READII:**
+   - Generate negative control images
+   - Extract same feature sets on controls
+3. **Delta-Radiomics (T1 − T0):**
+   - Filter to patients with at least T0 and T1
+   - Calculate feature differences (T1 − T0)
+   - Visualize volume change
+   - Identify features correlated with volume change
+   - Identify features NOT correlated with volume → correlate with genomics
+4. Correlate radiomic features with treatment response
+
+**Phase 3: Radiogenomic Integration (Planned)**
+
+Following [Sun et al. (PMID: 30120041)](https://pubmed.ncbi.nlm.nih.gov/30120041/), who linked CT radiomic features to CD8 cell infiltration using machine learning, we extend this approach to breast cancer MRI with multi-arm treatment stratification and longitudinal imaging.
+
+1. **Correlation analysis:** radiomic features vs gene expression features, subset by feature class and treatment/receptor
+2. **Unsupervised linking:** explore whether MRI features can distinguish immune-hot vs immune-cold tumors
+3. **Predictive signatures:** build combined radiogenomic signature, test if it predicts treatment response
+4. **Optional — FMCIB:** deep learning radiomics feature extraction
+
+### Key Question
+
+Can radiomics predict tumor shrinkage or immune phenotype better than genomics alone — or does combining both improve prediction?
+
+---
+
+## Overview
+
+### Dataset Summary
+
+- **Study Reference**: [PMID: 35623341](https://pubmed.ncbi.nlm.nih.gov/35623341/)  
+- **Clinical Trial**: [ISPY2/NCT01042379](https://clinicaltrials.gov/study/NCT01042379)  
+- **Data Source**: [GEO: GSE194040](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE194040)  
+- **Study Population**:  
+  - **Genomics Data**: 987 patients (mRNA & RPPA profiling)  
+  - **Radiomics Data**: 985 patients (MRI scans)  
+- **Platforms Used**:
+  - **Genomics**: Agilent 44K arrays  
+  - **Radiomics**: MRI (DCE-MRI)   
+
+#### Treatment Details
+
+- **Total Patients (Microarray)**: 987  
+- **Total Patients (MRI)**: 985 (719 I-SPY2 cases, 266 ACRIN-6698 cases)  
+- **Treatment Groups**:
+  - **IO + Chemo**: 69 patients  
+  - **Chemo + Targeted Therapy**: 687 patients  
+  - **Chemo Alone**: 179 patients  
+  - **Targeted Therapy Alone**: 52 patients  
+- **Key Treatment Arms**:
+  - Paclitaxel ± Trastuzumab  
+  - Veliparib + Carboplatin  
+  - AMG-386 (Trebananib) ± Trastuzumab  
+  - Neratinib, Ganetespib, Ganitumab, Pembrolizumab, Pertuzumab, T-DM1  
+
+#### Additional Information
+
+- **Batch Correction**:  
+  - **ComBat** was applied to correct batch effects in gene expression data.  
+  - Adjusted ~800 patients; linear adjustments applied to remaining cases.  
+
+- **Radiomics Data**:  
+  - MRI dataset includes **4 serial DCE-MRI scans per patient**.  
+  - Performed **before and during neoadjuvant chemotherapy** to track tumor volume changes and response.  
+
+- **Data Availability**:  
+  - Genomics: Available in [GEO: GSE194040](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE194040).  
+  - Imaging: MRI datasets accessible via [The Cancer Imaging Archive (ISPY2 Collection)](https://www.cancerimagingarchive.net/collection/ispy2/).  
+
+- **Key Reference**:  
+  - Wolf DM et al., *Cancer Cell*, 2022. [PMID: 35623341](https://pubmed.ncbi.nlm.nih.gov/35623341).  
+
+---
+
+## Section 1: Data Processing 
+
+### Load Libraries
+ 
+```{r libraries, include=TRUE, message=FALSE, warning=FALSE}
+library(here)
+library(MultiAssayExperiment) 
+library(knitr)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggvenn)
+library(kableExtra) 
+library(limma)
+library(EnhancedVolcano)
+library(msigdbr)
+library(fgsea)
+library(patchwork)
+library(stringr)
+library(pheatmap)
+library(stringr)
+```
+
+### Load Genomics Data {.tabset .tabset-pills}
+
+Load MultiAssayExperiment `.rds` File.
+This step extracts **clinical, expression (Microarray quantile normalized), and annotation data** for further analysis.
+
+```{r load multiassay and extract Data}
+# Define base directory
+input_dir <- file.path(here(), "data/rawdata/genomics")
+output_dir <- file.path(here(), "data/results/genomics")
+dir.create(file.path(output_dir, "DEG_analysis"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "pathway_analysis"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(here(), "data/results/radiogenomics"), recursive = TRUE, showWarnings = FALSE)
+
+# Load dataset
+mae <- readRDS(file.path(input_dir, "ICB_Wolf.rds"))
+
+# Extract clinical, expression, and annotation data
+clin <- data.frame(colData(mae))  
+expr <- assays(mae)[["expr"]] # dim 18348 x 987
+annot <- data.frame(rowData(mae@ExperimentList$expr))
+
+# Create a named vector to map gene_id to gene_name
+gene_map <- setNames(annot$gene_name, annot$gene_id)
+rownames(expr) <- gene_map[rownames(expr)]
+rownames(annot) <- annot$gene_name
+```
+
+#### Clinical Data 
+
+Display first 50 rows of Clinical Data.
+
+```{r clin summery}
+kable(head(clin, 50), caption = "Genomics Clinical Data") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+#### Microarray Expression Data 
+
+Display first 20 rows of quantile-normalized Microarray data.
+
+```{r expr summery}
+kable(head(expr, 20), caption = "Expression Data - Microarray") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+#### Annotation Data 
+
+Displays gene annotation for the dataset.
+
+```{r data summery}
+kable(head(annot, 20), caption = "Gene Annotation Data") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+### Load Radiomics Data {.tabset .tabset-pills}
+
+The radiomics dataset includes dynamic contrast-enhanced MRI (**DCE-MRI**) scans used to monitor tumor response to treatment.
+
+**Metadata Source:**
+
+* **File:** `ISPY2-Imaging-Cohort-1-Clinical-Data.xlsx`
+* **Access:** [The Cancer Imaging Archive – I-SPY2 Collection](https://www.cancerimagingarchive.net/collection/ispy2/)
+* **Total Patients:** **985** (719 I-SPY2 cases, 266 [ACRIN-6698 cases](https://www.cancerimagingarchive.net/collection/ispy1/))
+
+**Radiomics (MRI) Data:**
+
+* Each patient has **4 MRI scans** (T0–T3)
+* MRI features include: Functional Tumor Volume (**FTV**), Longest Tumor Diameter, Sphericity
+* Data collected from **22+ clinical centers**
+
+```{r Load Radiomics Metadata}
+Radiomics_clin <- read_excel(file.path(input_dir, "ISPY2-Imaging-Cohort-1-Clinical-Data.xlsx"))  
+
+kable(Radiomics_clin, caption = "Radiomics Clinical Data") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+### Match Patients: Genomics and Radiomics
+
+Identify overlapping patients between genomics (gene expression) and radiomics (MRI scans) datasets.
+
+```{r check Patient Matching}
+# Prepare genomic clinical data
+Genomics_clin <- clin  
+Genomics_clin$patientid <- sub("^X", "", Genomics_clin$patientid)
+rownames(Genomics_clin) <- Genomics_clin$patientid
+colnames(expr) <- sub("^X", "", colnames(expr))
+
+# Identify common patients
+common_patients <- intersect(Genomics_clin$patientid, Radiomics_clin$Patient_ID)  
+cat("Patients with both microarray and MRI data:", length(common_patients), "\n")
+
+# Venn diagram
+venn_data <- list(Genomics = Genomics_clin$patientid, Radiomics = Radiomics_clin$Patient_ID)
+
+ggvenn(venn_data, fill_color = c("#A6CEE3", "#FB9A99"), stroke_size = 0.5, set_name_size = 4) +
+  ggtitle("Overlap of Genomics (Microarray) and Radiomics (MRI) Patient IDs") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),
+        plot.background = element_rect(fill = "white"),
+        panel.background = element_blank())
+```
+
+### Merge Genomics & Radiomics Data
+
+Merging both datasets based on **common patient IDs**.
+
+```{r Merge}
+# Add prefix to radiomics columns
+colnames(Radiomics_clin)[-which(colnames(Radiomics_clin) == "Patient_ID")] <- 
+  paste0("Radiomics_", colnames(Radiomics_clin)[-which(colnames(Radiomics_clin) == "Patient_ID")])
+
+# Merge datasets
+merged_clin <- merge(Genomics_clin, Radiomics_clin, by.x = "patientid", by.y = "Patient_ID")
+merged_clin <- merged_clin[order(merged_clin$patientid), ]
+
+# Save dataset
+write.csv(merged_clin, 
+          file = file.path(here(), "data/results/radiogenomics", "combined_clin_radiogenomic.csv"), 
+          row.names = FALSE)
+
+kable(head(merged_clin, 50), caption = "Merged Clinical Data (Genomics & Radiomics)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+### Segmentation Overview
+
+We evaluated segmentation consistency by verifying that each patient had four **DCE-MRI** segmentation masks — one per time point — for reliable **Functional Tumor Volume (FTV)** analysis. Most patients met this requirement; those with fewer were flagged for review.
+
+#### DCE-MRI Segmentation
+
+Each scan undergoes multiple segmentation steps:  
+
+1. **Manual VOI (Volume of Interest):** A rectangular region around the enhancing tumor.  
+2. **Background Masking:** Removes noise and fat saturation artifacts.  
+3. **Percent Enhancement (PE) Threshold:** Filters non-enhancing tissue.  
+4. **Connectivity Filter:** Ensures 3D tumor voxel connectivity.  
+5. **OMIT Regions:** Manual exclusion of non-tumor areas.  
+
+Segmentation masks are stored as **2D DICOM images**, aligned with the original **DCE-MRI scans**.
+
+> Download masks: [UCSF Box](https://ucsf.box.com/s/d09xetaatzgnz2p9bxlqh50rrzilgcoj)
+
+#### Segmentation Metadata {.tabset .tabset-pills}
+
+##### ISPY1: MRI Metadata  
+
+Stored in `ispy1_dce_series_info.xlsx`, this file contains metadata for **221 patients**.
+
+```{r ISPY1 segmentation metadata}
+ispy1_dce_series_info <- read_excel(
+  path = file.path(input_dir, "ispy1_dce_series_info.xlsx"), 
+  sheet = "DCE Series, All 20160823"
+) 
+
+ispy1_dce_series_info <- ispy1_dce_series_info %>%
+  mutate(TIME_POINT = recode(TIME_POINT, "T1" = "T0","T2" = "T1","T3" = "T2","T4" = "T3"))
+
+kable(head(ispy1_dce_series_info, 20), caption = "DCE MRI Series Information") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+##### ISPY2: MRI Metadata  
+
+Metadata for ISPY2 was extracted from `series-data1741883133411.csv`, containing records for **719 patients**.
+
+```{r segmentation metadata}
+ispy2_dce_series_info <- read.csv(file.path(input_dir, "series-data1741883133411.csv"))
+colnames(ispy2_dce_series_info)[colnames(ispy2_dce_series_info) == "Subject.ID"] <- "PATIENT_ID"
+ispy2_dce_series_info$TIME_POINT <- gsub(".*(T[0-9]+).*", "\\1", ispy2_dce_series_info$Study.Description)
+
+kable(head(ispy2_dce_series_info, 20), caption = "ISPY2 DCE MRI Series Information") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+# Merge ISPY1 and ISPY2 metadata
+# ispy1_selected <- ispy1_dce_series_info[, c("PATIENT_ID", "TIME_POINT")]
+# ispy2_selected <- ispy2_dce_series_info[, c("PATIENT_ID", "TIME_POINT")]
+ispy1and2 <- merge(ispy1_dce_series_info, ispy2_dce_series_info, by = c("PATIENT_ID", "TIME_POINT"), all = TRUE)
+
+```
+
+#### Segmentation Completeness Check
+
+Each of the 940 patients is expected to have at least four segmentation masks, one for each of their four MRI scans.
+
+```{r Check Segmentation}
+series_per_patient <- ispy1and2 %>%
+  group_by(PATIENT_ID, TIME_POINT) %>%
+  summarize(Series_Count = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = TIME_POINT, values_from = Series_Count, values_fill = 0) %>%
+  mutate(across(starts_with("T"), as.numeric),
+         Total_Segmentations = rowSums(select(., starts_with("T")), na.rm = TRUE))
+
+kable(series_per_patient, caption = "Segmentation Counts per Patient") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+# Summary per timepoint
+timepoints <- intersect(c("T0", "T1", "T2", "T3"), colnames(series_per_patient))
+summary_df <- data.frame(
+  Timepoint = timepoints,
+  Present = sapply(timepoints, function(t) sum(series_per_patient[[t]] > 0)),
+  Missing = sapply(timepoints, function(t) sum(series_per_patient[[t]] == 0))
+)
+
+kable(summary_df, caption = "Segmentation Availability per Timepoint") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+
+
+# Patients with both T0 and T1 (needed for delta-radiomics)
+if (all(c("T0", "T1") %in% colnames(series_per_patient))) {
+  has_both <- sum(series_per_patient$T0 > 0 & series_per_patient$T1 > 0)
+  has_either <- sum(series_per_patient$T0 > 0 | series_per_patient$T1 > 0)
+  cat("Patients with both T0 and T1:", has_both, "\n")
+  cat("Patients with at least T0 or T1:", has_either, "\n")
+}
+```
+
+Patients missing **one or more segmentation masks** need further review.
+
+```{r missing segmentations}
+patients_less_than_4 <- series_per_patient %>%
+  filter(Total_Segmentations < 4) %>%
+  select(PATIENT_ID, Total_Segmentations)
+
+kable(patients_less_than_4, caption = "Patients with Less Than 4 Segmentation Masks") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+---
+
+## Section 2: Genomic Analysis
+
+**Objective:** Process microarray expression data to identify predictive and biologically meaningful features associated with treatment response.
+
+### 1. Subset Radiogenomics
+
+982 patients shared between genomic and radiomics data; 18,348 genes.
+
+```{r subset to Radiogenomics}
+clin_data <- merged_clin
+expr_data <- expr[, common_patients]
+annot_data <- annot[annot$gene_name %in% common_patients, ]
+```
+
+### 2. Keep Protein-Coding Genes
+
+* Retained only **protein-coding genes** (17,547) based on **GENCODE annotations**
+* *Optional:* Apply variance filtering to remove low-variance genes -Skipped.
+
+```{r restrict to protein-coding genes}
+# Subset to common patients
+expr_data <- expr[, common_patients]
+annot_data <- annot[annot$gene_name %in% common_patients, ]
+clin_data <- merged_clin[merged_clin$patientid %in% common_patients, ]
+
+# Restrict to protein-coding genes
+annot_proteincoding <- annot[annot$gene_type == "protein_coding", ]
+expr_data <- expr_data[rownames(expr_data) %in% rownames(annot_proteincoding), ]
+
+# Treatment frequency tables
+DT::datatable(as.data.frame(table(merged_clin$treatment)), 
+              colnames = c("Treatment", "Count"))
+DT::datatable(as.data.frame(table(merged_clin$treatmentid)), 
+              colnames = c("Treatment ID", "Count"))
+
+# Expression density plot (all treatments)
+plot(
+  density(as.numeric(as.matrix(expr_data)), na.rm = TRUE),
+  main = "Overall Expression Density (All treatments)",
+  xlab = "Expression", ylab = "Density"
+)
+
+# Expression density by treatment group
+treatments <- unique(na.omit(merged_clin$treatment))
+for (treat in treatments) {
+  patients <- merged_clin$patientid[merged_clin$treatment == treat]
+  expr_subset <- expr_data[, colnames(expr_data) %in% patients, drop = FALSE]
+  plot(
+    density(as.numeric(as.matrix(expr_subset)), na.rm = TRUE),
+    main = paste("Expression Density:", treat),
+    xlab = "Expression", ylab = "Density"
+  )
+}
+```
+
+### 3. PredictIO Signatures
+
+* Loaded **55 curated immune-oncology (IO) RNA signatures** (`.rda` format)
+* Each signature derived from **peer-reviewed publications**
+* Signatures used to assess **immune response**, **sensitivity**, or **resistance** to immune checkpoint blockade
+* Mapped to **GENCODE v40**
+* Sources: [bhklab/SignatureSets](https://github.com/bhklab/SignatureSets) | [predictio.ca](https://predictio.ca/)
+
+```{r PredictIO sigs intersection}
+sig_path <- file.path(input_dir, "predictIO_sigs")
+rda_files <- list.files(sig_path, pattern = "\\.rda$", full.names = TRUE)
+summary_list <- list()
+
+for (file in rda_files) {
+  sig_obj <- get(load(file))
+  sig_name <- if ("signature_name" %in% colnames(sig_obj) && length(unique(sig_obj$signature_name)) > 0)
+    unique(sig_obj$signature_name)[1]
+  else
+    tools::file_path_sans_ext(basename(file))
+
+  if (!"gene_name" %in% colnames(sig_obj)) next
+
+  genes <- sig_obj$gene_name
+  matched <- intersect(rownames(expr_data), genes)
+
+  summary_list[[sig_name]] <- data.frame(
+    signature = sig_name,
+    n_genes_total = length(genes),
+    n_genes_matched = length(matched),
+    matched_genes = paste(sort(matched), collapse = ", ")
+  )
+}
+
+summary_df <- do.call(rbind, summary_list)
+
+kable(summary_df, caption = "Summary of gene overlap between IO signatures and expression data") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+### 4. DE Analysis (R vs NR) — Full Cohort
+
+performs differential expression (DE) analysis using limma to find genes that differ between Responders vs Non-Responders across all 982 patients.
+
+```{r DEG-Full dataset analysis, fig.width=7, fig.height=7}
+# Design and model
+design_full <- model.matrix(~ clin_data$response)
+fit_full <- eBayes(lmFit(expr_data, design_full))
+top_full <- topTable(fit_full, sort.by = "P", n = Inf)
+top_full$Gene <- rownames(top_full)
+fc_cutoff <- 1.5
+p_cutoff <- 0.05
+top_n_labels <- Inf
+
+# Save results
+write.table(top_full, file.path(output_dir, "DEG_analysis", "full_limma_fit.txt"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+DT::datatable(round(top_full[sapply(top_full, is.numeric)], 3), 
+              caption = "TopTable - Full Cohort")
+
+# Clean numeric columns for volcano
+top_full.clean <- top_full[, sapply(top_full, is.numeric)]
+rownames(top_full.clean) <- rownames(top_full)
+
+# Labels: top 20 red dots only
+red_genes_pval <- top_full.clean[
+  top_full.clean$P.Value < p_cutoff & abs(top_full.clean$logFC) >= fc_cutoff,
+]
+red_genes_pval <- head(red_genes_pval[order(red_genes_pval$P.Value), ], top_n_labels)
+selectLab_pval <- rownames(red_genes_pval)
+
+red_genes_fdr <- top_full.clean[
+  top_full.clean$adj.P.Val < p_cutoff & abs(top_full.clean$logFC) >= fc_cutoff,
+]
+red_genes_fdr <- head(red_genes_fdr[order(red_genes_fdr$adj.P.Val), ], top_n_labels)
+selectLab_fdr <- rownames(red_genes_fdr)
+
+# Counts
+n_pval_full <- sum(top_full.clean$P.Value < p_cutoff & abs(top_full.clean$logFC) >= fc_cutoff)
+n_fdr_full <- sum(top_full.clean$adj.P.Val < p_cutoff & abs(top_full.clean$logFC) >= fc_cutoff)
+
+# Volcano plot: P-value
+print(EnhancedVolcano(top_full.clean,
+  lab = rownames(top_full.clean),
+  selectLab = selectLab_pval,
+  x = 'logFC', y = 'P.Value',
+  pCutoff = p_cutoff, FCcutoff = fc_cutoff,
+  xlim = c(-3, 3), ylim = c(0, 20),
+  labSize = 3.5,
+  labCol = "black",
+  drawConnectors = TRUE,
+  widthConnectors = 0.5,
+  colConnectors = "grey50",
+  maxoverlapsConnectors = Inf,
+  title = "Volcano Plot (P value) - Full Cohort",
+  subtitle = paste0("p < ", p_cutoff, " & |logFC| >= ", fc_cutoff, ": ", n_pval_full, " genes"),
+  caption = paste0("Total genes: ", nrow(top_full.clean))
+))
+
+# Volcano plot: FDR
+print(EnhancedVolcano(top_full.clean,
+  lab = rownames(top_full.clean),
+  selectLab = selectLab_fdr,
+  x = 'logFC', y = 'adj.P.Val',
+  pCutoff = p_cutoff, FCcutoff = fc_cutoff,
+  xlim = c(-3, 3), ylim = c(0, 20),
+  labSize = 3.5,
+  labCol = "black",
+  drawConnectors = TRUE,
+  widthConnectors = 0.5,
+  colConnectors = "grey50",
+  maxoverlapsConnectors = Inf,
+  legendLabels = c('Not sig.', 'Log FC', 'adj p-value', 'adj p-value & Log FC'),
+  title = "Volcano Plot (FDR) - Full Cohort",
+  subtitle = paste0("FDR < ", p_cutoff, " & |logFC| >= ", fc_cutoff, ": ", n_fdr_full, " genes"),
+  caption = paste0("Total genes: ", nrow(top_full.clean))
+))
+
+# Summary
+sig_genes_full <- rownames(top_full)[top_full$adj.P.Val < p_cutoff & abs(top_full$logFC) >= fc_cutoff]
+cat("DE genes (adj.P.Val <", p_cutoff, "):", sum(top_full$adj.P.Val < p_cutoff), "\n")
+cat("DE genes (adj.P.Val <", p_cutoff, "& |logFC| >=", fc_cutoff, "):", length(sig_genes_full), "\n")
+cat("Significant gene names:\n")
+print(sig_genes_full)
+```
+
+```{r}
+# Summary table for full cohort
+genes_full_fc1.0 <- rownames(top_full)[top_full$adj.P.Val < p_cutoff & abs(top_full$logFC) >= 1.0]
+genes_full_fc1.5 <- rownames(top_full)[top_full$adj.P.Val < p_cutoff & abs(top_full$logFC) >= fc_cutoff]
+
+summary_full <- data.frame(
+  Cohort = "Full (982 patients)",
+  FDR_sig = sum(top_full$adj.P.Val < p_cutoff),
+  FDR_FC1.0 = length(genes_full_fc1.0),
+  FDR_FC1.5 = length(genes_full_fc1.5),
+  Top_Genes_FC1.0 = ifelse(length(genes_full_fc1.0) == 0, "–", paste(genes_full_fc1.0, collapse = ", ")),
+  Top_Genes_FC1.5 = ifelse(length(genes_full_fc1.5) == 0, "–", paste(genes_full_fc1.5, collapse = ", "))
+)
+
+rownames(summary_full) <- NULL
+colnames(summary_full) <- c("Cohort", "FDR < 0.05", 
+                              "FDR & abs(logFC) >= 1.0", 
+                              "FDR & abs(logFC) >= 1.5", 
+                              "Genes (logFC >= 1.0)",
+                              "Genes (logFC >= 1.5)")
+
+kable(summary_full, row.names = FALSE,
+      caption = "Summary of DE Genes - Full Cohort") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.csv(summary_full, 
+          file = file.path(output_dir, "DEG_analysis", "DE_summary_full_cohort.csv"),
+          row.names = FALSE)
+```
+
+### 5. Pathway Enrichment — Full Cohort {.tabset .tabset-pills}
+
+#### MSigDB Hallmark Gene Sets
+
+* Gene sets from [MSigDB](https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H)
+* Analysis: **GSEA using the `fgsea` R package**
+* Input: ranked gene list from differential expression results
+
+```{r pathway analysis, fig.width=10, fig.height=7}
+# Load hallmark gene sets
+pathwaysDF <- msigdbr("Homo sapiens", category = "H")
+pathwaysH <- split(as.character(pathwaysDF$gene_symbol), pathwaysDF$gs_name)
+
+# Create ranked gene list
+ranks <- top_full$logFC
+names(ranks) <- top_full$Gene
+ranks <- sort(ranks, decreasing = TRUE)
+
+# Run GSEA
+fgseaRes <- fgsea(pathways = pathwaysH, stats = ranks, nproc = 1)
+fgseaRes <- na.omit(fgseaRes)
+
+fgseaResTidy <- fgseaRes %>%
+  as_tibble() %>%
+  arrange(desc(NES)) %>%
+  mutate(leadingEdge = sapply(leadingEdge, paste, collapse = ";"))
+fgseaResTidy <- fgseaResTidy[order(fgseaResTidy$padj), ]
+
+kable(fgseaResTidy) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.table(fgseaResTidy, file.path(output_dir, "pathway_analysis", "full_fgseaRes_HRank.txt"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+# Significance colors
+fgseaResTidy$adjPvalue <- ifelse(fgseaResTidy$padj <= 0.05, "significant", "non-significant")
+cols <- c("non-significant" = "grey", "significant" = "red")
+
+# NES barplot
+ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  coord_flip() +
+  labs(x = "Pathway", y = "Normalized Enrichment Score",
+       title = "Hallmark Pathways NES - Full Cohort")
+
+# GSEA table plot
+plotGseaTable(pathwaysH[fgseaRes$pathway[fgseaRes$padj < 0.05]], ranks, fgseaRes, gseaParam = 0.5)
+
+# Dot plot
+ggplot(fgseaResTidy[fgseaResTidy$padj < 0.05, ], aes(y = reorder(pathway, size), x = NES)) +
+  geom_point(aes(color = padj, size = size)) +
+  scale_color_gradientn(colours = c("red", "blue")) +
+  labs(x = 'Normalized Enrichment Score', y = NULL) +
+  theme(axis.title = element_text(face = 'bold'), axis.text = element_text(face = 'bold'))
+```
+
+#### KEGG Pathway Analysis {.tabset .tabset-pills}
+
+##### KEGG_MEDICUS
+
+```{r pathway analysis dotplot, fig.width=16, fig.height=10}
+pathwaysKEGG_MED <- gmtPathways(file.path(input_dir, "c2.cp.kegg_medicus.v2023.2.Hs.symbols.gmt"))
+
+fgseaRes_kegg <- fgsea(pathways = pathwaysKEGG_MED, stats = ranks, nproc = 1)
+
+fgseaResTidy_kegg <- fgseaRes_kegg %>%
+  as_tibble() %>%
+  arrange(desc(NES)) %>%
+  mutate(leadingEdge = sapply(leadingEdge, paste, collapse = ";"))
+
+kable(fgseaResTidy_kegg) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.table(fgseaResTidy_kegg, file.path(output_dir, "pathway_analysis", "full_fgseaRes_kegRank.txt"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+fgseaResTidy_kegg$adjPvalue <- ifelse(fgseaResTidy_kegg$padj <= 0.05, "significant", "non-significant")
+
+ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+  geom_col() +
+  scale_fill_manual(values = cols) +
+  coord_flip() +
+  labs(x = "Pathway", y = "Normalized Enrichment Score",
+       title = "KEGG Pathways NES - Full Cohort")
+
+ggplot(fgseaResTidy_kegg[fgseaResTidy_kegg$padj < 0.05, ], aes(y = reorder(pathway, size), x = NES)) +
+  geom_point(aes(color = padj, size = size)) +
+  scale_color_gradientn(colours = c("red", "blue")) +
+  labs(x = 'Normalized Enrichment Score', y = NULL) +
+  theme(axis.title = element_text(face = 'bold'), axis.text = element_text(face = 'bold'))
+```
+
+#### Over-Representation Analysis (ORA)
+
+Identifies whether certain gene sets are over-represented in a target gene group.
+
+```{r ORA full toptable, fig.width=18, fig.height=12}
+deGenes <- rownames(top_full)[top_full$pval < 0.05]
+geneUniverse <- rownames(expr_data)
+
+# ORA for Hallmark pathways
+oraHallmark <- fora(pathways = pathwaysH, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+oraHallmark$Pathway_Set <- "Hallmark"
+oraHallmark$Significance <- ifelse(oraHallmark$pval < 0.05, "Significant", "Not Significant")
+
+# ORA for KEGG_MEDICUS pathways
+oraKeggMed <- fora(pathways = pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
+oraKeggMed$Significance <- ifelse(oraKeggMed$pval < 0.05, "Significant", "Not Significant")
+
+kable(oraHallmark, caption = "Hallmark Pathway Enrichment Results") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+kable(oraKeggMed, caption = "KEGG Medicus Pathway Enrichment Results") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.table(transform(oraHallmark, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+            file = file.path(output_dir, "pathway_analysis", "Hallmark_ORA_Results.csv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+
+write.table(transform(oraKeggMed, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+            file = file.path(output_dir, "pathway_analysis", "KeggMed_ORA_Results.csv"),
+            sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+### 6. DE by Treatment (R vs NR) 
+
+Treatment groups: `"chemo"`, `"chemo+targeted"`, `"IO+chemo"`, `"targeted"`
+
+```{r DEG-subset dataset analysis,fig.width=7, fig.height=7}
+DT::datatable(as.data.frame(table(merged_clin$treatment)), colnames = c("Treatment", "Count"))
+DT::datatable(as.data.frame(table(merged_clin$treatmentid)), colnames = c("Treatment ID", "Count"))
+
+treatment_list <- c("chemo", "chemo+targeted", "IO+chemo", "targeted")
+sig_gene_list <- list()
+top_table_list <- list()
+
+# Define thresholds once — change here to update everywhere
+fc_cutoff <- 1.5
+p_cutoff <- 0.05
+top_n_labels <- Inf 
+
+for (treatment in treatment_list) {
+  cat("\nProcessing:", treatment, "\n")
+  
+  # Subset data
+  clin_sub <- clin_data[clin_data$treatment == treatment, ]
+  matched_ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  expr_sub <- expr_data[, matched_ids]
+
+  # Design and fit
+  design <- model.matrix(~ clin_sub$response)
+  fit <- lmFit(expr_sub, design)
+  fit <- eBayes(fit)
+  top.table <- topTable(fit, sort.by = "P", n = Inf)
+
+  cat("DE genes (adj.P.Val <", p_cutoff, "):", sum(top.table$adj.P.Val < p_cutoff), "\n")
+
+  top.table.clean <- top.table[, sapply(top.table, is.numeric)]
+  rownames(top.table.clean) <- rownames(top.table)
+
+  # Labels: top N red dots only
+  red_genes_pval <- top.table.clean[
+    top.table.clean$P.Value < p_cutoff & abs(top.table.clean$logFC) >= fc_cutoff,
+  ]
+  red_genes_pval <- head(red_genes_pval[order(red_genes_pval$P.Value), ], top_n_labels)
+  selectLab_pval <- rownames(red_genes_pval)
+
+  red_genes_fdr <- top.table.clean[
+    top.table.clean$adj.P.Val < p_cutoff & abs(top.table.clean$logFC) >= fc_cutoff,
+  ]
+  red_genes_fdr <- head(red_genes_fdr[order(red_genes_fdr$adj.P.Val), ], top_n_labels)
+  selectLab_fdr <- rownames(red_genes_fdr)
+
+  # Counts for subtitle
+  n_pval <- sum(top.table.clean$P.Value < p_cutoff & abs(top.table.clean$logFC) >= fc_cutoff)
+  n_fdr <- sum(top.table.clean$adj.P.Val < p_cutoff & abs(top.table.clean$logFC) >= fc_cutoff)
+
+  # Volcano plot: P-value
+  print(EnhancedVolcano(top.table.clean,
+    lab = rownames(top.table.clean),
+    selectLab = selectLab_pval,
+    x = 'logFC', y = 'P.Value',
+    pCutoff = p_cutoff, FCcutoff = fc_cutoff,
+    xlim = c(-5, 5), ylim = c(0, 8),
+    labSize = 3.5,
+    labCol = "black",
+    drawConnectors = TRUE,
+    widthConnectors = 0.5,
+    colConnectors = "grey50",
+    maxoverlapsConnectors = Inf,
+    title = paste("Volcano Plot (P value) -", treatment),
+    subtitle = paste0("p < ", p_cutoff, " & |logFC| >= ", fc_cutoff, ": ", n_pval, " genes (top ", top_n_labels, " labeled)"),
+    caption = paste0("Total genes: ", nrow(top.table.clean))
+  ))
+
+  # Volcano plot: FDR
+  print(EnhancedVolcano(top.table.clean,
+    lab = rownames(top.table.clean),
+    selectLab = selectLab_fdr,
+    x = 'logFC', y = 'adj.P.Val',
+    pCutoff = p_cutoff, FCcutoff = fc_cutoff,
+    xlim = c(-5, 5), ylim = c(0, 8),
+    labSize = 3.5,
+    labCol = "black",
+    drawConnectors = TRUE,
+    widthConnectors = 0.5,
+    colConnectors = "grey50",
+    maxoverlapsConnectors = Inf,
+    legendLabels = c('Not sig.', 'Log FC', 'adj p-value', 'adj p-value & Log FC'),
+    title = paste("Volcano Plot (FDR) -", treatment),
+    subtitle = paste0("FDR < ", p_cutoff, " & |logFC| >= ", fc_cutoff, ": ", n_fdr, " genes (top ", top_n_labels, " labeled)"),
+    caption = paste0("Total genes: ", nrow(top.table.clean))
+  ))
+
+  # Save and display
+  top.table$Gene <- rownames(top.table)
+  file_name <- paste0(gsub("\\+", "_", treatment), "_limma_fit.txt")
+  write.table(top.table, file = file.path(output_dir, "DEG_analysis", file_name),
+              row.names = FALSE, sep = "\t", quote = FALSE)
+
+  top.display <- top.table
+  top.display[, sapply(top.display, is.numeric)] <- round(top.display[, sapply(top.display, is.numeric)], 3)
+  print(DT::datatable(top.display, caption = paste("TopTable -", treatment)))
+
+  # Report
+  sig_genes <- rownames(top.table)[top.table$adj.P.Val < p_cutoff & abs(top.table$logFC) >= fc_cutoff]
+  cat("DE genes (FDR <", p_cutoff, "& |logFC| >=", fc_cutoff, "):", length(sig_genes), "\n")
+  cat("Significant gene names:\n")
+  print(sig_genes)
+
+  top_table_list[[treatment]] <- top.table
+  sig_gene_list[[treatment]] <- sig_genes
+
+  gene_file <- paste0(gsub("\\+", "_", treatment), "_significant_genes.txt")
+  writeLines(sig_genes, file.path(output_dir, "DEG_analysis", gene_file))
+}
+```
+
+
+**Summary of Differentially Expressed Genes by Treatment**:
+
+**IO+Chemo Key Findings (47 DE genes):**
+
+- **Upregulated in responders (immune-hot):** 
+  LAMP3, CCL13, IDO1, CXCL13, CXCL9, MARCO, UBD, CHI3L2, CRABP1, KRT5
+  → Immune activation: dendritic cells, T-cell chemokines, interferon-induced genes
+
+- **Upregulated in non-responders (hormone-driven):** 
+  CA12, AGR2, FOXA1, AR, ACOX2, GATA3, TFF1, TFF3, SCUBE2, MSMB
+  → Estrogen receptor pathway: luminal markers, hormone-regulated genes
+
+- **Key takeaway:** Immune-hot tumors respond to pembrolizumab + chemo; 
+  cold, hormone-driven tumors do not.
+
+```{r define sub_treat}
+# Summary table with both thresholds
+summary_rows <- list()
+for (treatment in treatment_list) {
+  tt <- top_table_list[[treatment]]
+  
+  genes_fc1.0 <- rownames(tt)[tt$adj.P.Val < p_cutoff & abs(tt$logFC) >= 1.0]
+  genes_fc1.5 <- rownames(tt)[tt$adj.P.Val < p_cutoff & abs(tt$logFC) >= fc_cutoff]
+  
+  summary_rows[[treatment]] <- data.frame(
+    Treatment = treatment,
+    FDR_sig = sum(tt$adj.P.Val < p_cutoff),
+    FDR_FC1.0 = length(genes_fc1.0),
+    FDR_FC1.5 = length(genes_fc1.5),
+    Top_Genes_FC1.0 = ifelse(length(genes_fc1.0) == 0, "–", paste(genes_fc1.0, collapse = ", ")),
+    Top_Genes_FC1.5 = ifelse(length(genes_fc1.5) == 0, "–", paste(genes_fc1.5, collapse = ", "))
+  )
+}
+
+summary_df <- do.call(rbind, summary_rows)
+rownames(summary_df) <- NULL
+colnames(summary_df) <- c("Treatment", "FDR < 0.05", 
+                           "FDR & abs(logFC) >= 1.0", 
+                           "FDR & abs(logFC) >= 1.5", 
+                           "Genes (logFC >= 1.0)",
+                           "Genes (logFC >= 1.5)")
+
+kable(summary_df, row.names = FALSE, 
+      caption = "Summary of DE Genes by Treatment") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.csv(summary_df, 
+          file = file.path(output_dir, "DEG_analysis", "DE_summary_by_treatment.csv"),
+          row.names = FALSE)
+```
+
+
+
+### 7. Enrichment by Treatment {.tabset .tabset-pills}
+
+> **Note:** Pathway enrichment is focused on IO+Chemo and Targeted arms, as Chemo (0 DE genes) and Chemo+Targeted (1 DE gene) showed minimal differential expression signal.
+
+```{r define sub_treats}
+sub_treat <- c("IO+chemo", "targeted", "chemo+targeted")
+```
+
+#### MSigDB Hallmark Gene Sets
+
+```{r per-treat hallmark, fig.width=7, fig.height=7}
+fgsea_result_list <- list()
+fgsea_plot_list <- list()
+fgsea_dotplot_list <- list()
+
+for (treatment in sub_treat) {
+  message("Running GSEA for: ", treatment)
+  
+  top_treat <- top_table_list[[treatment]]
+  ranks <- top_treat$logFC
+  names(ranks) <- top_treat$Gene
+  ranks <- sort(ranks, decreasing = TRUE)
+
+  fgseaRes <- fgsea(pathways = pathwaysH, stats = ranks, nproc = 1)
+  fgseaRes <- na.omit(fgseaRes)
+  
+  fgseaResTidy <- fgseaRes %>%
+    as_tibble() %>%
+    arrange(desc(NES)) %>%
+    mutate(
+      leadingEdge = sapply(leadingEdge, paste, collapse = ";"),
+      adjPvalue = ifelse(padj <= 0.05, "significant", "non-significant")
+    )
+
+  fgsea_result_list[[treatment]] <- fgseaResTidy
+
+  # Barplot (all pathways)
+  p_bar <- ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+    geom_col() +
+    scale_fill_manual(values = c("significant" = "red", "non-significant" = "grey")) +
+    coord_flip() +
+    theme_minimal() +
+    labs(title = paste("Hallmark NES -", treatment), x = "Pathway", y = "Normalized Enrichment Score")
+
+  fgsea_plot_list[[treatment]] <- p_bar
+  print(p_bar)
+
+  # Dot plot (significant only)
+  sig_fgsea <- fgseaResTidy %>% filter(padj < p_cutoff)
+
+  if (nrow(sig_fgsea) > 0) {
+    p_dot <- ggplot(sig_fgsea, aes(x = NES, y = reorder(pathway, NES))) +
+      geom_point(aes(color = padj, size = size)) +
+      scale_color_gradientn(colours = c("red", "blue")) +
+      theme_minimal() +
+      labs(x = "Normalized Enrichment Score", y = NULL,
+           title = paste("Significant Hallmark Pathways -", treatment),
+           subtitle = paste0("FDR < ", p_cutoff, ": ", nrow(sig_fgsea), " pathways")) +
+      theme(axis.title = element_text(face = 'bold'),
+            axis.text = element_text(face = 'bold'))
+
+    fgsea_dotplot_list[[treatment]] <- p_dot
+    print(p_dot)
+  } else {
+    cat("No significant pathways for", treatment, "\n")
+  }
+
+  # Table
+  print(
+    kable(fgseaResTidy, caption = paste("fgsea results -", treatment)) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+      scroll_box(height = "400px")
+  )
+
+  # Save results
+  write.table(fgseaResTidy,
+    file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_fgseaRes_Hallmark.txt")),
+    sep = "\t", row.names = FALSE, quote = FALSE)
+}
+```
+
+#### KEGG_MEDICUS Pathway Analysis
+
+```{r per-treat Kegg dotplot, fig.width=13, fig.height=10}
+fgsea_kegg_result_list <- list()
+fgsea_kegg_barplot_list <- list()
+fgsea_kegg_dotplot_list <- list()
+
+for (treatment in sub_treat) {
+  message("Running KEGG GSEA for: ", treatment)
+
+  top_treat <- top_table_list[[treatment]]
+  ranks <- setNames(top_treat$logFC, top_treat$Gene)
+  ranks <- sort(ranks, decreasing = TRUE)
+
+  fgseaRes_kegg <- fgsea(pathways = pathwaysKEGG_MED, stats = ranks, nproc = 1)
+  fgseaRes_kegg <- na.omit(fgseaRes_kegg)
+
+  fgseaResTidy_kegg <- fgseaRes_kegg %>%
+    as_tibble() %>%
+    arrange(desc(NES)) %>%
+    mutate(
+      leadingEdge = sapply(leadingEdge, paste, collapse = ";"),
+      adjPvalue = ifelse(padj <= 0.05, "significant", "non-significant")
+    )
+
+  fgsea_kegg_result_list[[treatment]] <- fgseaResTidy_kegg
+
+  write.table(fgseaResTidy_kegg,
+    file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_fgseaRes_kegg.txt")),
+    sep = "\t", row.names = FALSE, quote = FALSE)
+
+  sig_fgsea <- fgseaResTidy_kegg %>% filter(padj <= p_cutoff)
+
+  # Barplot (significant only)
+  if (nrow(sig_fgsea) > 0) {
+    p_bar <- ggplot(sig_fgsea, aes(reorder(pathway, NES), NES, fill = adjPvalue)) +
+      geom_col() +
+      scale_fill_manual(values = c("significant" = "red")) +
+      coord_flip() +
+      theme_minimal() +
+      labs(x = "Pathway", y = "NES", 
+           title = paste("KEGG NES -", treatment),
+           subtitle = paste0("FDR < ", p_cutoff, ": ", nrow(sig_fgsea), " pathways"))
+
+    fgsea_kegg_barplot_list[[treatment]] <- p_bar
+    print(p_bar)
+
+    # Dot plot (significant only)
+    p_dot <- ggplot(sig_fgsea, aes(x = NES, y = reorder(pathway, NES))) +
+      geom_point(aes(color = padj, size = size)) +
+      scale_color_gradientn(colours = c("red", "blue")) +
+      theme_minimal() +
+      labs(x = "Normalized Enrichment Score", y = NULL, 
+           title = paste("KEGG Dot Plot -", treatment),
+           subtitle = paste0("FDR < ", p_cutoff, ": ", nrow(sig_fgsea), " pathways")) +
+      theme(axis.title = element_text(face = 'bold'), 
+            axis.text = element_text(face = 'bold'))
+
+    fgsea_kegg_dotplot_list[[treatment]] <- p_dot
+    print(p_dot)
+  } else {
+    cat("No significant KEGG pathways for", treatment, "\n")
+  }
+
+  # Table
+  print(
+    kable(fgseaResTidy_kegg, caption = paste("KEGG GSEA results -", treatment)) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+      scroll_box(height = "400px")
+  )
+}
+```
+
+#### Over-Representation Analysis (per-treatment)
+
+```{r per-treat ORA, fig.width=18, fig.height=12}
+ora_hallmark_result_list <- list()
+ora_keggmed_result_list <- list()
+
+for (treatment in sub_treat) {
+  message("Running ORA for: ", treatment)
+
+  top_treat <- top_table_list[[treatment]]
+  deGenes <- rownames(top_treat)[top_treat$pval < 0.05]
+  geneUniverse <- rownames(expr_data)
+
+  # ORA Hallmark
+  oraHallmark <- fora(pathways = pathwaysH, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+  oraHallmark$Pathway_Set <- "Hallmark"
+  oraHallmark$Significance <- ifelse(oraHallmark$pval < 0.05, "Significant", "Not Significant")
+  oraHallmark$Treatment <- treatment
+  ora_hallmark_result_list[[treatment]] <- oraHallmark
+
+  # ORA KEGG_MEDICUS
+  oraKeggMed <- fora(pathways = pathwaysKEGG_MED, genes = deGenes, universe = geneUniverse, minSize = 15, maxSize = 500)
+  oraKeggMed$Pathway_Set <- "KEGG_MEDICUS"
+  oraKeggMed$Significance <- ifelse(oraKeggMed$pval < 0.05, "Significant", "Not Significant")
+  oraKeggMed$Treatment <- treatment
+  ora_keggmed_result_list[[treatment]] <- oraKeggMed
+
+  # Save
+  write.table(transform(oraHallmark, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+    file = file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_Hallmark_ORA.tsv")),
+    sep = "\t", row.names = FALSE, quote = FALSE)
+
+  write.table(transform(oraKeggMed, overlapGenes = sapply(overlapGenes, paste, collapse = ",")),
+    file = file.path(output_dir, "pathway_analysis", paste0(gsub("\\+", "_", treatment), "_KeggMed_ORA.tsv")),
+    sep = "\t", row.names = FALSE, quote = FALSE)
+
+  print(kable(head(oraHallmark, 10), caption = paste("Top Hallmark ORA -", treatment)) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE))
+}
+```
+
+### 8. Gene–Response Correlation
+
+Does the expression of a specific gene predict whether a patient will respond to treatment or not? Sections 4–7 looked at genes and pathways as groups. This section zooms in and tests **each gene individually** to see if higher expression is associated with response.
+
+### 8. Gene–Response Correlation
+
+Does the expression of a specific gene predict whether a patient will respond to treatment or not? Sections 4–7 looked at genes and pathways as groups. This section zooms in and tests **each gene individually** to see if higher expression is associated with response, then groups them into biologically meaningful combinations.
+
+**Candidate genes from two sources:**
+
+**1. DE Significant Genes (from Section 6):**
+* **IO+Chemo:** 47 genes at |logFC| ≥ 1.5 (143 at |logFC| ≥ 1.0)
+* **Targeted:** 3 genes at |logFC| ≥ 1.5 (5 at |logFC| ≥ 1.0)
+* Gene-response correlation uses the broader |logFC| ≥ 1.0 list to capture moderate but real effects
+
+**2. Key Biological Candidates (from literature):**
+* **Immune:** CD8A, CD8B, PDCD1 (PD-1), CD274 (PD-L1), IFNG, GZMB, PRF1, CXCL9
+* **Luminal/Resistance:** ESR1, PGR, ERBB2
+
+> **Note:** CD8A/CD8B were selected based on [Sun et al. (PMID: 30120041)](https://pubmed.ncbi.nlm.nih.gov/30120041/), which used CD8B to build a radiomic-immune signature linking CT features to CD8 cell infiltration. PDCD1/CD274 are the direct targets of the IO drugs (pembrolizumab) used in I-SPY2. ESR1/PGR/ERBB2 connect to the estrogen response and HER2 pathways identified in Sections 5–7.
+
+**PredictIO Signatures (from Section 3):**
+* 55 curated immune-oncology RNA signatures — used as **validation only**
+* Not included as candidate source (derived from other studies/cancers)
+* Used to check: do known IO signatures overlap with our DE-derived candidates?
+
+**Analysis flow:**
+1. Build candidate gene list (DE at |logFC| ≥ 1.0 + literature)
+2. Test each gene individually against response (Wilcoxon, per treatment)
+3. Group genes into biological combinations (immune, luminal, HER2) and test group scores
+4. Validate against PredictIO signatures (overlap check)
+5. Visualize: boxplots and heatmaps
+
+```{r build candidate genes}
+# DE genes at |logFC| >= 1.0 from IO+chemo and targeted 
+de_genes_fc1 <- c()
+for (treatment in c("IO+chemo", "targeted")) {
+  tt <- top_table_list[[treatment]]
+  genes <- rownames(tt)[tt$adj.P.Val < p_cutoff & abs(tt$logFC) >= 1.0]
+  de_genes_fc1 <- c(de_genes_fc1, genes)
+}
+de_genes_fc1 <- unique(de_genes_fc1)
+
+#  Literature genes 
+literature_genes <- c("CD8A", "CD8B", "PDCD1", "CD274", "IFNG", "GZMB", "PRF1",
+                       "CXCL9", "ESR1", "PGR", "ERBB2")
+
+# Combine 
+candidate_genes <- unique(c(de_genes_fc1, literature_genes))
+candidate_genes <- candidate_genes[candidate_genes %in% rownames(expr_data)]
+
+cat("Candidate genes:\n")
+cat("  DE |logFC| >= 1.5 (IO+chemo + targeted):", 
+    length(unique(c(sig_gene_list[["IO+chemo"]], sig_gene_list[["targeted"]]))), "\n")
+cat("  DE |logFC| >= 1.0 (IO+chemo + targeted):", length(de_genes_fc1), "\n")
+cat("  Literature:", length(literature_genes), "\n")
+cat("  Total unique:", length(candidate_genes), "\n")
+
+# Source tracking table 
+source_df <- data.frame(
+  Gene = candidate_genes,
+  DE_FC1.5 = ifelse(candidate_genes %in% unique(c(sig_gene_list[["IO+chemo"]], sig_gene_list[["targeted"]])), "Yes", ""),
+  DE_FC1.0 = ifelse(candidate_genes %in% de_genes_fc1, "Yes", ""),
+  Literature = ifelse(candidate_genes %in% literature_genes, "Yes", ""),
+  stringsAsFactors = FALSE
+)
+source_df <- source_df[order(source_df$DE_FC1.5, decreasing = TRUE), ]
+
+kable(source_df, caption = "Candidate Gene Sources (|logFC| >= 1.0 for correlation)",
+      row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.csv(source_df,
+          file = file.path(output_dir, "DEG_analysis", "candidate_gene_sources.csv"),
+          row.names = FALSE)
+```
+
+#### Step 1: Single Gene–Response Correlation {.tabset .tabset-pills}
+
+Test each candidate gene individually using Wilcoxon rank-sum test (R vs NR) per treatment arm.
+
+```{r Gene correlation with response, warning=FALSE}
+results <- list()
+for (treat in sub_treat) {
+  clin_sub <- clin_data[clin_data$treatment == treat, ]
+  ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  
+  for (gene in candidate_genes) {
+    expr_vals <- as.numeric(expr_data[gene, ids])
+    response <- clin_sub$response[clin_sub$patientid %in% ids]
+    
+    wt <- wilcox.test(expr_vals ~ response)
+    
+    results[[paste(treat, gene)]] <- data.frame(
+      Treatment = treat,
+      Gene = gene,
+      p_value = wt$p.value,
+      mean_R = mean(expr_vals[response == "R"], na.rm = TRUE),
+      mean_NR = mean(expr_vals[response == "NR"], na.rm = TRUE)
+    )
+  }
+}
+
+gene_response_df <- do.call(rbind, results)
+gene_response_df$FDR <- p.adjust(gene_response_df$p_value, method = "BH")
+gene_response_df$Direction <- ifelse(gene_response_df$mean_R > gene_response_df$mean_NR, "Up in R", "Up in NR")
+gene_response_df <- gene_response_df[order(gene_response_df$p_value), ]
+
+kable(gene_response_df, caption = "Gene-Response Correlation (Single Genes)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.csv(gene_response_df,
+          file = file.path(output_dir, "DEG_analysis", "gene_response_correlation.csv"),
+          row.names = FALSE)
+```
+
+
+```{r Boxplots single genes, fig.width=10, fig.height=8}
+for (treat in sub_treat) {
+  top_genes_df <- gene_response_df %>%
+    filter(Treatment == treat, FDR < 0.05) %>%
+    head(6)
+  
+  if (nrow(top_genes_df) == 0) next
+  
+  clin_sub <- clin_data[clin_data$treatment == treat, ]
+  ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  
+  plot_list <- list()
+  for (j in seq_len(nrow(top_genes_df))) {
+    gene <- top_genes_df$Gene[j]
+    fdr_val <- top_genes_df$FDR[j]
+    
+    df <- data.frame(
+      Expression = as.numeric(expr_data[gene, ids]),
+      Response = clin_sub$response[clin_sub$patientid %in% ids]
+    )
+    plot_list[[gene]] <- ggplot(df, aes(x = Response, y = Expression, fill = Response)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+      scale_fill_manual(values = c("R" = "#E74C3C", "NR" = "#3498DB")) +
+      labs(title = gene,
+           subtitle = paste0("FDR = ", formatC(fdr_val, format = "e", digits = 2)),
+           y = "Expression", x = NULL) +
+      theme_minimal() +
+      theme(legend.position = "none",
+            plot.subtitle = element_text(size = 7))
+  }
+  
+  combined <- wrap_plots(plot_list, ncol = 3) +
+    plot_annotation(title = paste("Top Individual Genes -", treat))
+  print(combined)
+}
+```
+
+#### Step 2: Data-Driven Gene Group Scores {.tabset .tabset-pills}
+
+Group candidate genes by biological function (from DE results in Section 6) and test combined z-score as a group signature.
+
+```{r data-driven gene combinations, fig.width=10, fig.height=5}
+# Define gene groups from our DE results 
+immune_genes <- intersect(c("CD8A", "CD8B", "PDCD1", "CD274", "IFNG", "GZMB", "PRF1",
+                             "CXCL9", "CXCL13", "IDO1", "LAMP3", "CCL13", "MARCO", "UBD",
+                             "CHI3L2", "CRABP1", "KRT5"), candidate_genes)
+
+luminal_genes <- intersect(c("ESR1", "PGR", "FOXA1", "GATA3", "AR", "AGR2", "CA12",
+                              "TFF1", "TFF3", "SCUBE2", "ACOX2", "MSMB"), candidate_genes)
+
+her2_genes <- intersect(c("ERBB2", "GRB7", "MNX1", "PNMT"), candidate_genes)
+
+gene_groups <- list(
+  Immune_Activation = immune_genes,
+  Luminal_Resistance = luminal_genes,
+  HER2_Associated = her2_genes
+)
+gene_groups <- gene_groups[sapply(gene_groups, length) >= 2]
+
+cat("Gene groups:\n")
+for (g in names(gene_groups)) {
+  cat(" ", g, "(", length(gene_groups[[g]]), "genes):",
+      paste(gene_groups[[g]], collapse = ", "), "\n")
+}
+
+# Test each group per treatment 
+group_results <- list()
+for (group_name in names(gene_groups)) {
+  genes <- gene_groups[[group_name]]
+  for (treat in sub_treat) {
+    clin_sub <- clin_data[clin_data$treatment == treat, ]
+    ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+    
+    z_mat <- t(scale(t(expr_data[genes, ids])))
+    group_score <- colMeans(z_mat, na.rm = TRUE)
+    response <- clin_sub$response[clin_sub$patientid %in% ids]
+    
+    wt <- wilcox.test(group_score ~ response)
+    
+    group_results[[paste(treat, group_name)]] <- data.frame(
+      Treatment = treat, Gene_Group = group_name,
+      n_genes = length(genes),
+      genes = paste(genes, collapse = ", "),
+      p_value = wt$p.value,
+      mean_R = mean(group_score[response == "R"], na.rm = TRUE),
+      mean_NR = mean(group_score[response == "NR"], na.rm = TRUE)
+    )
+  }
+}
+
+group_score_df <- do.call(rbind, group_results)
+group_score_df$FDR <- p.adjust(group_score_df$p_value, method = "BH")
+group_score_df$Direction <- ifelse(group_score_df$mean_R > group_score_df$mean_NR, "Up in R", "Up in NR")
+group_score_df <- group_score_df[order(group_score_df$p_value), ]
+
+kable(group_score_df, caption = "Gene Group Scores vs Response", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+
+write.csv(group_score_df,
+          file = file.path(output_dir, "DEG_analysis", "gene_group_scores_vs_response.csv"),
+          row.names = FALSE)
+
+wrap_genes <- function(genes, width = 55) {
+  stringr::str_wrap(paste(genes, collapse = ", "), width = width)
+}
+
+# Boxplots for gene groups (with gene names in subtitle)
+for (treat in sub_treat) {
+  treat_groups <- group_score_df %>% filter(Treatment == treat)
+  if (nrow(treat_groups) == 0) next
+
+  clin_sub <- clin_data[clin_data$treatment == treat, ]
+  ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  if (length(ids) < 2) next
+
+  plot_list <- list()
+  for (i in seq_len(nrow(treat_groups))) {
+    gname <- treat_groups$Gene_Group[i]
+    fdr_val <- treat_groups$FDR[i]
+    genes <- gene_groups[[gname]]
+    if (length(genes) < 2) next
+
+    z_mat <- t(scale(t(expr_data[genes, ids, drop = FALSE])))
+    df <- data.frame(
+      Score = colMeans(z_mat, na.rm = TRUE),
+      Response = clin_sub$response[match(ids, clin_sub$patientid)]
+    )
+
+    genes_txt <- wrap_genes(genes, width = 55)
+
+    plot_list[[gname]] <- ggplot(df, aes(x = Response, y = Score, fill = Response)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+      scale_fill_manual(values = c("R" = "#E74C3C", "NR" = "#3498DB")) +
+      labs(
+        title = gname,
+        subtitle = paste0(
+          "FDR = ", formatC(fdr_val, format = "e", digits = 2),
+          " | ", length(genes), " genes\n",
+          genes_txt
+        ),
+        y = "Mean Z-Score",
+        x = NULL
+      ) +
+      theme_minimal() +
+      theme(
+        legend.position = "none",
+        plot.subtitle = element_text(size = 6, lineheight = 0.95),
+        plot.title = element_text(size = 9)
+      )
+  }
+
+  if (length(plot_list) == 0) next
+
+  combined <- wrap_plots(plot_list, ncol = 3) +
+    plot_annotation(title = paste("Gene Group Scores -", treat))
+
+  print(combined)
+}
+```
+
+#### Step 3: PredictIO Signature Validation {.tabset .tabset-pills}
+
+Check which published IO signatures overlap with our candidate genes. This is **validation** — confirming that known signatures from other studies align with our findings.
+
+```{r Check overlap between PredictIO signatures}
+sig_candidate_overlap <- list()
+
+for (file in rda_files) {
+  sig_obj <- get(load(file))
+  sig_name <- if ("signature_name" %in% colnames(sig_obj) && length(unique(sig_obj$signature_name)) > 0)
+    unique(sig_obj$signature_name)[1]
+  else
+    tools::file_path_sans_ext(basename(file))
+
+  if (!"gene_name" %in% colnames(sig_obj)) next
+
+  genes <- sig_obj$gene_name
+  matched <- intersect(candidate_genes, genes)
+
+  if (length(matched) > 0) {
+    sig_candidate_overlap[[sig_name]] <- data.frame(
+      signature = sig_name,
+      n_sig_genes = length(genes),
+      n_candidate_overlap = length(matched),
+      overlapping_genes = paste(sort(matched), collapse = ", ")
+    )
+  }
+}
+
+sig_overlap_df <- do.call(rbind, sig_candidate_overlap)
+sig_overlap_df <- sig_overlap_df[order(-sig_overlap_df$n_candidate_overlap), ]
+
+kable(sig_overlap_df, caption = "PredictIO Signatures Overlapping with Candidate Genes") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+Test if the overlapping subset of each PredictIO signature predicts response.
+
+> **Note:** These scores use only the genes that overlap with our candidates, not the full signature. Full signature scoring is done in Section 9 using the PredictioR package.
+
+```{r predictio overlap response}
+sig_score_results <- list()
+
+for (sig_name in names(sig_candidate_overlap)) {
+  overlap_genes <- strsplit(sig_candidate_overlap[[sig_name]]$overlapping_genes, ", ")[[1]]
+  overlap_genes <- overlap_genes[overlap_genes %in% rownames(expr_data)]
+  
+  if (length(overlap_genes) < 2) next
+  
+  for (treat in sub_treat) {
+    clin_sub <- clin_data[clin_data$treatment == treat, ]
+    ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+    
+    sig_score <- colMeans(expr_data[overlap_genes, ids], na.rm = TRUE)
+    response <- clin_sub$response[clin_sub$patientid %in% ids]
+    
+    wt <- wilcox.test(sig_score ~ response)
+    
+    sig_score_results[[paste(treat, sig_name)]] <- data.frame(
+      Treatment = treat,
+      Signature = sig_name,
+      n_genes = length(overlap_genes),
+      p_value = wt$p.value,
+      mean_R = mean(sig_score[response == "R"], na.rm = TRUE),
+      mean_NR = mean(sig_score[response == "NR"], na.rm = TRUE)
+    )
+  }
+}
+
+sig_score_df <- do.call(rbind, sig_score_results)
+sig_score_df$FDR <- p.adjust(sig_score_df$p_value, method = "BH")
+sig_score_df$Direction <- ifelse(sig_score_df$mean_R > sig_score_df$mean_NR, "Up in R", "Up in NR")
+sig_score_df <- sig_score_df[order(sig_score_df$p_value), ]
+
+kable(sig_score_df, caption = "PredictIO Overlap Scores vs Response (Validation)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px")
+```
+
+
+
+```{r Boxplots predictio overlap, fig.width=10, fig.height=8}
+# add gene names
+wrap_genes <- function(genes, width = 45) {
+  stringr::str_wrap(paste(genes, collapse = ", "), width = width)
+}
+
+# helper: wrap long gene lists nicely
+wrap_genes <- function(genes, width = 45) {
+  stringr::str_wrap(paste(genes, collapse = ", "), width = width)
+}
+
+for (treat in sub_treat) {
+
+  top_sigs_treat <- sig_score_df %>%
+    filter(Treatment == treat, FDR < 0.05) %>%
+    arrange(FDR) %>%
+    head(6)
+
+  if (nrow(top_sigs_treat) == 0) next
+
+  clin_sub <- clin_data[clin_data$treatment == treat, ]
+  ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  if (length(ids) < 2) next
+
+  plot_list <- list()
+
+  for (i in seq_len(nrow(top_sigs_treat))) {
+    sig_name <- top_sigs_treat$Signature[i]
+    fdr_val <- top_sigs_treat$FDR[i]
+
+    n_total <- sig_candidate_overlap[[sig_name]]$n_sig_genes
+
+    overlap_genes <- strsplit(sig_candidate_overlap[[sig_name]]$overlapping_genes, ",\\s*")[[1]]
+    overlap_genes <- overlap_genes[overlap_genes %in% rownames(expr_data)]
+    n_used <- length(overlap_genes)
+
+    if (n_used < 2) next
+
+    df <- data.frame(
+      Score = colMeans(expr_data[overlap_genes, ids, drop = FALSE], na.rm = TRUE),
+      Response = clin_sub$response[match(ids, clin_sub$patientid)]
+    )
+
+    genes_txt <- wrap_genes(overlap_genes, width = 45)
+
+    plot_list[[sig_name]] <- ggplot(df, aes(x = Response, y = Score, fill = Response)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+      scale_fill_manual(values = c("R" = "#E74C3C", "NR" = "#3498DB")) +
+      labs(
+        title = sig_name,
+        subtitle = paste0(
+          "FDR = ", formatC(fdr_val, format = "e", digits = 2),
+          "  (", n_used, "/", n_total, " genes)\n",
+          genes_txt
+        ),
+        y = "Overlap score (mean expression)",
+        x = NULL
+      ) +
+      theme_minimal() +
+      theme(
+        legend.position = "none",
+        plot.title = element_text(size = 9),
+        plot.subtitle = element_text(size = 6, lineheight = 0.95)
+      )
+  }
+
+  if (length(plot_list) == 0) next
+
+  combined <- wrap_plots(plot_list, ncol = 3) +
+    plot_annotation(title = paste("PredictIO Overlap Scores -", treat))
+
+  print(combined)
+}
+```
+
+#### Step 4: Heatmaps {.tabset .tabset-pills}
+
+Heatmap of the top 20 significant genes (FDR < 0.05) from gene-response correlation, clustered by expression pattern (ward.D2). Columns are patients, rows are genes, expression is z-score scaled.
+
+**Column annotations:**
+
+- **Response**: pathological complete response (R) vs residual disease (NR)
+- **Receptor**: hormone receptor and HER2 status (TN, HR+HER2-, HR+HER2+, HR-HER2+)
+
+```{r Heatmap gene-response, fig.width=18, fig.height=7}
+for (treat in sub_treat) {
+
+  # -------------------------
+  # 1) ALL significant genes
+  # -------------------------
+  sig_genes <- gene_response_df %>%
+    filter(Treatment == treat, FDR < 0.05) %>%
+    arrange(FDR) %>%
+    pull(Gene) %>%
+    unique()
+
+  if (length(sig_genes) < 2) next
+
+  top20_genes <- head(sig_genes, 20)
+
+  clin_sub <- clin_data[clin_data$treatment == treat, ]
+  ids <- clin_sub$patientid[clin_sub$patientid %in% colnames(expr_data)]
+  if (length(ids) < 2) next
+
+  # -------------------------
+  # Annotations (match order)
+  # -------------------------
+  annot_col <- data.frame(
+    Response = clin_sub$response[match(ids, clin_sub$patientid)],
+    row.names = ids
+  )
+
+  annot_colors <- list(
+    Response = c("R" = "#2ECC71", "NR" = "#F39C12")
+  )
+
+  if ("Receptor.Subtype" %in% colnames(clin_sub)) {
+    vals <- clin_sub$Receptor.Subtype[match(ids, clin_sub$patientid)]
+    if (sum(!is.na(vals)) > 0) {
+      annot_col$Receptor <- vals
+      annot_colors$Receptor <- c(
+        "TN" = "#D62728", "HR+HER2-" = "#1F77B4",
+        "HR+HER2+" = "#9467BD", "HR-HER2+" = "#E377C2"
+      )[unique(na.omit(vals))]
+    }
+  }
+
+  # -------------------------
+  # Matrices
+  # -------------------------
+  mat_all <- expr_data[sig_genes, ids, drop = FALSE]
+  mat_top20 <- expr_data[top20_genes, ids, drop = FALSE]
+
+  # -------------------------
+  # Heatmap A: ALL genes
+  # -------------------------
+  pheatmap(mat_all,
+    annotation_col = annot_col,
+    annotation_colors = annot_colors,
+    scale = "row",
+    show_colnames = FALSE,
+    show_rownames = FALSE,
+    main = paste0("Significant genes (FDR < 0.05) - ", treat, " (n=", length(sig_genes), ")"),
+    clustering_method = "ward.D2",
+    color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
+    border_color = NA,
+    fontsize = 10,
+    treeheight_col = 30,
+    treeheight_row = 30,
+    cutree_cols = 2
+  )
+
+  # -------------------------
+  # Heatmap B: TOP 20 genes
+  # -------------------------
+  pheatmap(mat_top20,
+    annotation_col = annot_col,
+    annotation_colors = annot_colors,
+    scale = "row",
+    show_colnames = FALSE,
+    show_rownames = TRUE,
+    fontsize_row = 9,
+    main = paste0("Top 20 genes (by FDR) - ", treat),
+    clustering_method = "ward.D2",
+    color = colorRampPalette(c("#2166AC", "white", "#B2182B"))(100),
+    border_color = NA,
+    fontsize = 10,
+    treeheight_col = 30,
+    treeheight_row = 30,
+    cutree_cols = 2
+  )
+}
+```
+
+
+
+### 9. Full PredictIO Signature Scoring
+
+* Score each patient using the **PredictioR** R package ([GitHub](https://github.com/bhklab/PredictioR))
+* Uses the package's built-in scoring function rather than simple mean expression
+* Stratify by treatment arm to detect treatment-specific associations
+* These signature scores become genomic features for radiogenomic integration
+
+* Signature metadata (e.g., PMID, method, cancer context) is in:
+  [https://github.com/bhklab/SignatureSets/blob/main/data-raw/signature_information_io.csv](https://github.com/bhklab/SignatureSets/blob/main/data-raw/signature_information_io.csv)
+* Note: current IO signatures are pan-cancer / not breast-specific (**#TODO: add breast-specific signatures if needed**).
+
+```{r Stratified signature analysis}
+# TODO: Implement PredictioR-based signature scoring per treatment arm
+# TODO: Confirm/control group mapping (e.g., Paclitaxel arms as control)
+# TODO: PredictIO signatures are IO-focused and largely pan-cancer
+```
+
+---
+
+## Section 3: Radiomics Analysis
+
+Process MRI-derived radiomic features to identify imaging biomarkers associated with treatment response, and prepare features for radiogenomic integration.
+
+### 1. Load & Clean Radiomic Features
+Check how many patients, how many features
+
+```{r load radiomics features}
+# Load radiomics features
+ISPY_radiomics  <- read.csv(file.path(here(), "data/results/radiomics/TCIA_ISPY2_feature_extracted_v1.csv"))
+ACRIN_radiomics <- read.csv(file.path(here(), "data/results/radiomics/TCIA_ACRIN-6698_feature_extracted.csv"))
+# missing_radiomics <- read.csv(file.path(here(), "data/results/radiomics/missing_samples.csv"))
+
+# Combine radiomics
+full_radiomics <- bind_rows(ISPY_radiomics, ACRIN_radiomics)
+
+# Check for all-NA rows
+feature_cols <- grep("^original", colnames(full_radiomics), value = TRUE)
+all_na_rows <- rowSums(!is.na(full_radiomics[, feature_cols])) == 0
+cat("All-NA feature rows:", sum(all_na_rows), "\n")
+
+# Load index files
+ispy_index  <- read.csv(file.path(here(), "data/procdata/radiomics/ISPY2/mit_ISPY2_index.csv"))
+acrin_index <- read.csv(file.path(here(), "data/procdata/radiomics/ISPY2/mit_ACRIN-6698_index.csv"))
+common_cols <- intersect(names(ispy_index), names(acrin_index))
+for (col in common_cols) {
+  if (class(ispy_index[[col]]) != class(acrin_index[[col]])) {
+    ispy_index[[col]] <- as.character(ispy_index[[col]])
+    acrin_index[[col]] <- as.character(acrin_index[[col]])
+  }
+}
+full_index <- bind_rows(ispy_index, acrin_index)
+
+# Extract SampleID from filepath
+full_index$SampleID <- str_extract(full_index$filepath, "^[^/]+")
+tp_lookup <- full_index %>%
+  filter(Modality == "MR") %>%
+  select(SampleID, PatientID, AcquisitionDate) %>%
+  distinct() %>%
+  group_by(PatientID) %>%
+  arrange(AcquisitionDate) %>%
+  mutate(TIME_POINT = paste0("T", row_number() - 1)) %>%
+  ungroup()
+
+# Join TIME_POINT to radiomics
+full_radiomics <- full_radiomics %>%
+  left_join(tp_lookup %>% select(SampleID, PatientID, TIME_POINT),
+            by = c("patientid" = "SampleID"))
+
+# Add patient_base for clinical merge
+full_radiomics$patient_base <- gsub("^ISPY2-|^ACRIN-6698-", "", gsub("_.*", "", full_radiomics$patientid))
+
+# Check
+cat("TIME_POINT distribution:\n"); print(table(full_radiomics$TIME_POINT, useNA = "ifany"))
+radiogenomic_patients <- intersect(full_radiomics$patient_base, merged_clin$patientid)
+cat("Radiogenomic cohort:", length(radiogenomic_patients), "patients\n")
+
+# Keep only overlapping patients
+full_radiomics <- full_radiomics %>% filter(patient_base %in% radiogenomic_patients)
+merged_clin <- merged_clin %>% filter(patientid %in% radiogenomic_patients)
+
+kable(head(full_radiomics[, c("patientid", "patient_base", "PatientID", "TIME_POINT", feature_cols[1:5])], 10),
+      caption = "Radiomic Features") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px", width = "100%")
+
+kable(head(merged_clin, 10), caption = "Clinical Data") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(height = "400px", width = "100%")
+```
+
+
+### 2. Select T0 (Baseline)
+
+Filter to earliest timepoint per patient
+This is your baseline radiomic profile
+
+- **T0 baseline** for all patients
+- **Delta-radiomics** for patients with T0 + T1
+- **Volume change** visualization by response
+- **Features correlated with volume** (expected, less interesting)
+- **Features NOT correlated with volume** (interesting — correlate these with genomics next)
+
+```{r assign timepoints}
+# Samples per patient
+radiomics_feature <- full_radiomics
+samples_per_pt <- table(radiomics_feature$patient_base)
+cat("Samples per patient:\n"); print(table(samples_per_pt))
+
+# Verify existing timepoints
+cat("TIME_POINT distribution:\n")
+table(radiomics_feature$TIME_POINT)
+
+# Select T0 (baseline)
+radiomics_T0 <- radiomics_feature %>% filter(TIME_POINT == "T0")
+
+# Patients with T0 + T1 (for delta-radiomics)
+pts_T0 <- unique(radiomics_feature$patient_base[radiomics_feature$TIME_POINT == "T0"])
+pts_T1 <- unique(radiomics_feature$patient_base[radiomics_feature$TIME_POINT == "T1"])
+cat("Patients with T0 + T1 (for delta-radiomics):", length(intersect(pts_T0, pts_T1)), "\n")
+```
+
+### 3. Delta-Radiomics (T1 − T0)
+
+delta = T1 value - T0 value
+
+```{r delta radiomics}
+# Select patients with both T0 and T1
+radiomics_T1 <- radiomics_feature %>% filter(TIME_POINT == "T1")
+
+delta_patients <- intersect(radiomics_T0$patient_base, radiomics_T1$patient_base)
+cat("Patients with both T0 and T1:", length(delta_patients), "\n")
+
+# Calculate T1 - T0 for each feature
+T0_mat <- radiomics_T0 %>% filter(patient_base %in% delta_patients) %>% arrange(patient_base)
+T1_mat <- radiomics_T1 %>% filter(patient_base %in% delta_patients) %>% arrange(patient_base)
+
+delta_radiomics <- T1_mat[, feature_cols] - T0_mat[, feature_cols]
+delta_radiomics$patient_base <- T0_mat$patient_base
+cat("Volume change - Min:", min(delta_radiomics$volume_change), 
+    "| Max:", max(delta_radiomics$volume_change),
+    "| Mean:", round(mean(delta_radiomics$volume_change), 1),
+    "| SD:", round(sd(delta_radiomics$volume_change), 1), "\n") 
+
+cat("Delta-radiomics matrix:", nrow(delta_radiomics), "patients x", length(feature_cols), "features\n")
+
+DT::datatable(delta_radiomics)
+```
+
+Volume change alone (T1 − T0) is not a strong predictor of response this early
+
+```{r visualize volume change}
+# Visualize change in volume (VoxelVolume)
+delta_radiomics$volume_change <- delta_radiomics$original_shape_VoxelVolume
+
+ggplot(delta_radiomics, aes(x = volume_change)) +
+  geom_histogram(bins = 30, fill = "#3498DB", color = "white") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Distribution of Tumor Volume Change (T1 - T0)",
+       x = "Volume Change (voxels)", y = "Count") +
+  theme_minimal()
+
+# Volume change by response
+delta_with_clin <- merge(delta_radiomics, merged_clin[, c("patientid", "response", "treatment")],
+                          by.x = "patient_base", by.y = "patientid")
+
+ggplot(delta_with_clin, aes(x = response, y = volume_change, fill = response)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1) +
+  scale_fill_manual(values = c("R" = "#2ECC71", "NR" = "#F39C12")) +
+  labs(title = "Tumor Volume Change (T1 - T0) by Response",
+       x = "Response", y = "Volume Change") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Check extreme outliers
+vol_threshold <- mean(delta_radiomics$volume_change) + 3 * sd(delta_radiomics$volume_change)
+cat("Outlier threshold (3 SD):", round(vol_threshold), "\n")
+outliers <- delta_with_clin %>% filter(abs(volume_change) > abs(vol_threshold))
+cat("Outliers:", nrow(outliers), "\n")
+print(outliers[, c("patient_base", "volume_change", "response")])
+```
+
+```{r features correlated with volume, fig.width=12, fig.height=13}
+# Correlate each feature change with volume change
+vol_cor <- sapply(feature_cols, function(f) {
+  cor(delta_radiomics[[f]], delta_radiomics$volume_change, use = "complete.obs")
+})
+
+vol_cor_df <- data.frame(
+  Feature = names(vol_cor),
+  Correlation = vol_cor,
+  Abs_Correlation = abs(vol_cor)
+) %>% arrange(desc(Abs_Correlation))
+
+# Features highly correlated with volume (|r| > 0.7)
+cat("Features highly correlated with volume (|r| > 0.7):", sum(vol_cor_df$Abs_Correlation > 0.7), "\n")
+
+# Features NOT correlated with volume (|r| < 0.3) - interesting for genomics
+cat("Features independent of volume (|r| < 0.3):", sum(vol_cor_df$Abs_Correlation < 0.3), "\n")
+
+ggplot(vol_cor_df, aes(x = reorder(Feature, Abs_Correlation), y = Correlation)) +
+  geom_col(fill = "#3498DB") +
+  coord_flip() +
+  labs(title = "Features Correlated with Volume Change",
+       x = NULL, y = "Pearson Correlation with Volume Change") +
+  theme_minimal()
+
+# Plot top 20 correlated features
+ggplot(head(vol_cor_df, 20), aes(x = reorder(Feature, Abs_Correlation), y = Correlation)) +
+  geom_col(fill = "#3498DB") +
+  coord_flip() +
+  labs(title = "Top 20 Features Correlated with Volume Change",
+       x = NULL, y = "Pearson Correlation with Volume Change") +
+  theme_minimal()
+
+# Plot features NOT correlated with volume
+independent_features <- vol_cor_df %>% filter(Abs_Correlation < 0.3)
+cat("\nVolume-independent features (candidates for genomic correlation):\n")
+```
+
+
+
+```{r}
+sessionInfo()
+```
+
+3. Quality Check
+
+Filter out small/failed segmentations
+Check for missing values
+Check how many patients overlap with genomics (982)
+
+4. Delta-Radiomics (T1 − T0)
+
+Filter patients with both T0 and T1
+Calculate T1 minus T0 for each feature
+Visualize volume change
+Identify features correlated with volume
+Identify features NOT correlated with volume (interesting ones)
+
+5. Correlate Radiomics with Response
+
+Test each radiomic feature vs R/NR per treatment
+Similar to gene-response correlation in Section 8
+
+6. READII (later)
+
+Negative control images
+Extract same features
+
